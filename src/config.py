@@ -9,8 +9,8 @@ class TildConfig:
     device     = 'mps'  # M2 GPU!
     
     lr         = 3e-4
-    epochs     = 5000
-    batch_size = 16
+    epochs     = 20000
+    batch_size = 32
     
     data_path = 'data/combined.txt'
     model_path = 'models/tild_brain.pt'

@@ -11,7 +11,7 @@ def load_data():
     
     # Use tiktoken instead of character level
     enc = tiktoken.get_encoding(cfg.encoding)
-    tokens = enc.encode(text)
+    tokens = enc.encode(text, disallowed_special=())
     vocab_size = enc.n_vocab
     
     print(f"Tild found {len(tokens)} tokens in training data")

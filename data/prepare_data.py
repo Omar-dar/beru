@@ -1,21 +1,22 @@
 from datasets import load_dataset
 
-print("Downloading dataset...")
-dataset = load_dataset("Amod/mental_health_counseling_conversations", split="train")
+print("Downloading OpenAssistant dataset...")
+dataset = load_dataset("OpenAssistant/oasst1", split="train")
 
 output = []
 
 for item in dataset:
-    human = item["Context"].strip()
-    tild = item["Response"].strip()
-    if len(human) > 5 and len(tild) > 5:
+    if item["role"] == "prompter" and item["lang"] == "en":
+        human = item["text"].strip()
         output.append(f"### Human: {human}")
+    elif item["role"] == "assistant" and item["lang"] == "en":
+        tild = item["text"].strip()
         output.append(f"### Tild: {tild}")
         output.append("")
 
 print(f"Processed {len(output)} lines!")
 
-with open("data/daily_dialog.txt", "w", encoding="utf-8") as f:
+with open("data/conversations.txt", "w", encoding="utf-8") as f:
     f.write("\n".join(output))
 
-print("Saved to data/daily_dialog.txt!")
+print("Saved!")
