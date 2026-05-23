@@ -1,0 +1,5 @@
+models/tild_brain.pt
+__pycache__/
+*.pyc
+src/__pycache__/
+chat/__pycache__/
