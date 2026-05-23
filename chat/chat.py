@@ -1,20 +1,21 @@
 import torch
 import tiktoken
+import random
 from src.config import TildConfig
 from src.model import Tild
 
 cfg = TildConfig()
 
-# Smart fallbacks when Tild doesn't know
 FALLBACKS = [
-    "That is an interesting question. I am still learning about that.",
-    "Hmm, I need to think about that more. Ask me something else!",
-    "I do not have enough knowledge about that yet. Omar needs to train me more!",
-    "Good question! I am not sure yet but I am learning every day.",
-    "That is beyond what I know right now. But I am getting smarter!",
+    "That is an interesting question! I am still learning about that topic.",
+    "Hmm I am not sure about that yet. Ask me something else!",
+    "Good question! Omar needs to train me more on that topic.",
+    "I do not have enough knowledge about that yet but I am always learning!",
+    "That is beyond what I know right now. But tell me more and maybe I can figure it out!",
+    "Interesting! I have not learned enough about that yet. What else can I help with?",
+    "Omar has not trained me on that yet! But I am getting smarter every day.",
+    "I wish I could answer that better! More training will help me get there.",
 ]
-
-import random
 
 def load_tild():
     checkpoint = torch.load(cfg.model_path, map_location=cfg.device)
@@ -27,10 +28,13 @@ def load_tild():
     return model, enc
 
 def is_good_response(response):
-    # Check if response makes sense
     if len(response) < 3:
         return False
-    if response.count('?') > 3:
+    if len(response.split()) < 2:
+        return False
+    if response.count('|') > 2:
+        return False
+    if '###' in response:
         return False
     if len(set(response.split())) < 2:
         return False
@@ -50,16 +54,15 @@ def chat():
             break
 
         prompt = f"### Human: {user_input}\n### Tild:"
-        tokens = enc.encode(prompt)
+        tokens = enc.encode(prompt, disallowed_special=())
         context = torch.tensor([tokens], dtype=torch.long, device=cfg.device)
 
         with torch.no_grad():
-            output = model.generate(context, max_new_tokens=60)
+            output = model.generate(context, max_new_tokens=80)
 
         generated = enc.decode(output[0].tolist())
         response = generated[len(prompt):].split('\n')[0].strip()
 
-        # Use fallback if response is bad
         if not is_good_response(response):
             response = random.choice(FALLBACKS)
 

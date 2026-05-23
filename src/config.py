@@ -12,6 +12,6 @@ class TildConfig:
     epochs     = 20000
     batch_size = 32
     
-    data_path = 'data/combined.txt'
+    data_path = 'data/data.txt'
     model_path = 'models/tild_brain.pt'
     encoding   = 'gpt2'
