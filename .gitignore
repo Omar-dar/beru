@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 src/__pycache__/
 chat/__pycache__/
+.env

@@ -8,3 +8,4 @@ sounddevice
 soundfile
 numpy
 datasets
+python-dotenv

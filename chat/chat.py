@@ -62,24 +62,29 @@ def get_response(model, tokenizer, rag, memory, search, user_input, language='en
         q_words = set(correction['question'].lower().split())
         u_words = set(user_input.lower().split())
         common = q_words.intersection(u_words)
-        if len(common) >= 2:
+        if len(common) >= 3:
             return correction['correct']
 
-    # Try RAG first
+    # Check if question is about Tild or Omar
+    tild_keywords = ['tild', 'who are you', 'what are you', 'about you', 'your name', 'your purpose']
+    omar_keywords = ['omar darwish', 'your creator', 'who made you', 'who built you', 'who created you']
+    is_about_tild = any(word in user_input.lower() for word in tild_keywords + omar_keywords)
+
+    # Search internet first for external questions
+    if search.should_search(user_input) and not is_about_tild:
+        print("[Searching internet...]")
+        result = search.search(user_input)
+        if result:
+            print(f"[Found: {result[:50]}...]")
+            return search.format_response(result, user_input)
+
+    # RAG for Tild specific questions
     rag_answer, score = rag.find_answer(user_input, threshold=0.65)
     if rag_answer:
         print(f"[RAG match: {score:.2f}]")
         return rag_answer
 
-    # Try internet search
-    if search.should_search(user_input):
-        print("[Searching internet...]")
-        result = search.search(user_input)
-        if result:
-            print(f"[Found: {result[:50]}...]")
-            return f"I found this: {result}"
-
-    # Use context + language model
+    # Language model fallback
     context = memory.get_context()
     prompt = f"{context}### Human: {user_input}\n### Tild:"
     inputs = tokenizer.encode(prompt, return_tensors='pt')
