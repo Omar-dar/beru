@@ -1,52 +1,39 @@
 import torch
-import tiktoken
+import random
 import whisper
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
-import random
 import tempfile
 import subprocess
 import os
-from src.config import TildConfig
-from src.model import Tild
-
-cfg = TildConfig()
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from src.rag import TildRAG
+from src.memory import TildMemory
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
     "Hmm I am not sure about that yet. Ask me something else!",
-    "Good question! Omar needs to train me more on that topic.",
+    "Good question! I need to learn more about that.",
     "I do not have enough knowledge about that yet but I am always learning!",
-    "That is beyond what I know right now. But tell me more!",
-    "Omar has not trained me on that yet! But I am getting smarter every day.",
 ]
 
-# Arabic fallbacks
 FALLBACKS_AR = [
     "هذا سؤال مثير للاهتمام! لا أزال أتعلم عن هذا الموضوع.",
     "لست متأكداً من ذلك بعد. اسألني شيئاً آخر!",
-    "سؤال جيد! عمر يحتاج أن يدربني أكثر على هذا الموضوع.",
-    "لا أعرف الكافي عن ذلك بعد، لكنني أتعلم دائماً!",
 ]
 
-# Swedish fallbacks
 FALLBACKS_SV = [
-    "Det är en intressant fråga! Jag lär mig fortfarande om det ämnet.",
+    "Det är en intressant fråga! Jag lär mig fortfarande.",
     "Jag är inte säker på det ännu. Fråga mig något annat!",
-    "Bra fråga! Omar behöver träna mig mer på det ämnet.",
-    "Jag vet inte tillräckligt om det ännu, men jag lär mig hela tiden!",
 ]
 
 def load_tild():
-    checkpoint = torch.load(cfg.model_path, map_location=cfg.device)
-    vocab_size = checkpoint['vocab_size']
-    encoding = checkpoint['encoding']
-    enc = tiktoken.get_encoding(encoding)
-    model = Tild(vocab_size).to(cfg.device)
-    model.load_state_dict(checkpoint['model_state'])
+    print("Loading Tild's brain...")
+    tokenizer = GPT2Tokenizer.from_pretrained('models/tild_v2')
+    model = GPT2LMHeadModel.from_pretrained('models/tild_v2')
     model.eval()
-    return model, enc
+    return model, tokenizer
 
 def is_good_response(response):
     if len(response) < 3:
@@ -59,19 +46,51 @@ def is_good_response(response):
         return False
     return True
 
-def speak(text, language='en'):
-    print(f"Tild: {text}")
-    subprocess.run(['say', '-v', 'Karen', text])
+def get_tild_response(model, tokenizer, rag, memory, user_input, language='en'):
+    # Check correction
+    if memory.is_correction(user_input):
+        last_exchange = [m for m in memory.conversation_history if m['role'] == 'tild']
+        last_question = [m for m in memory.conversation_history if m['role'] == 'human']
 
-def get_tild_response(model, enc, user_input, language='en'):
-    prompt = f"### Human: {user_input}\n### Tild:"
-    tokens = enc.encode(prompt, disallowed_special=())
-    context = torch.tensor([tokens], dtype=torch.long, device=cfg.device)
+        if last_exchange and last_question:
+            wrong_answer = last_exchange[-1]['text']
+            question = last_question[-2]['text'] if len(last_question) >= 2 else last_question[-1]['text']
+            correct = memory.extract_correction(user_input)
+
+            if correct:
+                memory.add_correction(wrong_answer, correct, question)
+                return "Thank you for correcting me! I will remember that."
+            else:
+                return "I understand I was wrong! Can you tell me the correct answer?"
+
+    # Check corrections memory
+    for correction in memory.corrections:
+        if correction['question'].lower() in user_input.lower():
+            return correction['correct']
+
+    # Try RAG
+    rag_answer, score = rag.find_answer(user_input, threshold=0.65)
+    if rag_answer:
+        print(f"[RAG match: {score:.2f}]")
+        return rag_answer
+
+    # Use context + language model
+    context = memory.get_context()
+    prompt = f"{context}### Human: {user_input}\n### Tild:"
+    inputs = tokenizer.encode(prompt, return_tensors='pt')
 
     with torch.no_grad():
-        output = model.generate(context, max_new_tokens=80)
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=80,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.encode('\n')[0]
+        )
 
-    generated = enc.decode(output[0].tolist())
+    generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
     response = generated[len(prompt):].split('\n')[0].strip()
 
     if not is_good_response(response):
@@ -83,6 +102,10 @@ def get_tild_response(model, enc, user_input, language='en'):
             response = random.choice(FALLBACKS)
 
     return response
+
+def speak(text, language='en'):
+    print(f"Tild: {text}")
+    subprocess.run(['say', '-v', 'Karen', text])
 
 def record_audio(duration=5, sample_rate=16000):
     print(f"Recording for {duration} seconds... Speak now!")
@@ -110,8 +133,9 @@ def transcribe_audio(audio, sample_rate, whisper_model):
     return text, detected_language
 
 def voice_chat():
-    print("Loading Tild's brain...")
-    model, enc = load_tild()
+    model, tokenizer = load_tild()
+    rag = TildRAG()
+    memory = TildMemory()
 
     print("Loading Whisper...")
     whisper_model = whisper.load_model("small", device="cpu")
@@ -134,8 +158,10 @@ def voice_chat():
             continue
 
         print(f"You said: {text}")
-        response = get_tild_response(model, enc, text, language)
+        memory.add_to_conversation('human', text)
+        response = get_tild_response(model, tokenizer, rag, memory, text, language)
+        memory.add_to_conversation('tild', response)
         speak(response, language)
 
 if __name__ == '__main__':
-    voice_chat()    
+    voice_chat()

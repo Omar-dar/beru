@@ -1,0 +1,10 @@
+{
+  "corrections": [
+    {
+      "question": "hello do you know me",
+      "wrong": "Hello! Great to see you. I am Tild, your personal AI!",
+      "correct": "when someone ask you do you know me you should answer if you don't know him and ask him to tell you about him self",
+      "time": "2026-05-24T02:19:52.924110"
+    }
+  ]
+}

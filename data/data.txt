@@ -1438,3 +1438,5 @@
 
 ### Human: ما هو الذكاء الاصطناعي
 ### Tild: الذكاء الاصطناعي هو مجال إنشاء أنظمة يمكنها أداء مهام تتطلب عادةً الذكاء البشري. أنا مثال على ذلك!
+### Human: hello do you know me
+### Tild: when someone ask you do you know me you should answer if you don't know him and ask him to tell you about him self

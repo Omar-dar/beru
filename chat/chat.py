@@ -1,38 +1,38 @@
 import torch
-import tiktoken
 import random
-from src.config import TildConfig
-from src.model import Tild
-
-cfg = TildConfig()
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from src.rag import TildRAG
+from src.memory import TildMemory
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
     "Hmm I am not sure about that yet. Ask me something else!",
-    "Good question! Omar needs to train me more on that topic.",
+    "Good question! I need to learn more about that.",
     "I do not have enough knowledge about that yet but I am always learning!",
-    "That is beyond what I know right now. But tell me more and maybe I can figure it out!",
-    "Interesting! I have not learned enough about that yet. What else can I help with?",
-    "Omar has not trained me on that yet! But I am getting smarter every day.",
-    "I wish I could answer that better! More training will help me get there.",
+    "That is beyond what I know right now. But tell me more!",
+]
+
+FALLBACKS_AR = [
+    "هذا سؤال مثير للاهتمام! لا أزال أتعلم عن هذا الموضوع.",
+    "لست متأكداً من ذلك بعد. اسألني شيئاً آخر!",
+]
+
+FALLBACKS_SV = [
+    "Det är en intressant fråga! Jag lär mig fortfarande.",
+    "Jag är inte säker på det ännu. Fråga mig något annat!",
 ]
 
 def load_tild():
-    checkpoint = torch.load(cfg.model_path, map_location=cfg.device)
-    vocab_size = checkpoint['vocab_size']
-    encoding = checkpoint['encoding']
-    enc = tiktoken.get_encoding(encoding)
-    model = Tild(vocab_size).to(cfg.device)
-    model.load_state_dict(checkpoint['model_state'])
+    print("Loading Tild's brain...")
+    tokenizer = GPT2Tokenizer.from_pretrained('models/tild_v2')
+    model = GPT2LMHeadModel.from_pretrained('models/tild_v2')
     model.eval()
-    return model, enc
+    return model, tokenizer
 
 def is_good_response(response):
     if len(response) < 3:
         return False
     if len(response.split()) < 2:
-        return False
-    if response.count('|') > 2:
         return False
     if '###' in response:
         return False
@@ -40,9 +40,68 @@ def is_good_response(response):
         return False
     return True
 
+def get_response(model, tokenizer, rag, memory, user_input, language='en'):
+    # Check if it is a correction
+    if memory.is_correction(user_input):
+        # Get last Tild response
+        last_exchange = [m for m in memory.conversation_history if m['role'] == 'tild']
+        last_question = [m for m in memory.conversation_history if m['role'] == 'human']
+
+        if last_exchange and last_question:
+            wrong_answer = last_exchange[-1]['text']
+            question = last_question[-2]['text'] if len(last_question) >= 2 else last_question[-1]['text']
+            correct = memory.extract_correction(user_input)
+
+            if correct:
+                memory.add_correction(wrong_answer, correct, question)
+                return "Thank you for correcting me! I will remember that and learn from it."
+            else:
+                return "I understand I was wrong! Can you tell me the correct answer so I can learn?"
+
+    # First try corrections memory
+    for correction in memory.corrections:
+        if correction['question'].lower() in user_input.lower():
+            return correction['correct']
+
+    # Then try RAG
+    rag_answer, score = rag.find_answer(user_input, threshold=0.65)
+    if rag_answer:
+        print(f"[RAG match: {score:.2f}]")
+        return rag_answer
+
+    # Use context + language model
+    context = memory.get_context()
+    prompt = f"{context}### Human: {user_input}\n### Tild:"
+    inputs = tokenizer.encode(prompt, return_tensors='pt')
+
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=80,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.encode('\n')[0]
+        )
+
+    generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    response = generated[len(prompt):].split('\n')[0].strip()
+
+    if not is_good_response(response):
+        if language == 'ar':
+            response = random.choice(FALLBACKS_AR)
+        elif language == 'sv':
+            response = random.choice(FALLBACKS_SV)
+        else:
+            response = random.choice(FALLBACKS)
+
+    return response
+
 def chat():
-    print("Loading Tild's brain...")
-    model, enc = load_tild()
+    model, tokenizer = load_tild()
+    rag = TildRAG()
+    memory = TildMemory()
     print("Tild is ready! Type your message (or 'quit' to exit)\n")
 
     while True:
@@ -53,19 +112,9 @@ def chat():
             print("Tild: Goodbye! It was great talking with you.")
             break
 
-        prompt = f"### Human: {user_input}\n### Tild:"
-        tokens = enc.encode(prompt, disallowed_special=())
-        context = torch.tensor([tokens], dtype=torch.long, device=cfg.device)
-
-        with torch.no_grad():
-            output = model.generate(context, max_new_tokens=80)
-
-        generated = enc.decode(output[0].tolist())
-        response = generated[len(prompt):].split('\n')[0].strip()
-
-        if not is_good_response(response):
-            response = random.choice(FALLBACKS)
-
+        memory.add_to_conversation('human', user_input)
+        response = get_response(model, tokenizer, rag, memory, user_input)
+        memory.add_to_conversation('tild', response)
         print(f"Tild: {response}\n")
 
 if __name__ == '__main__':
