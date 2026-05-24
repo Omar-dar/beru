@@ -1,4 +1,6 @@
-models/tild_brain.pt
+models/
+data/cached_*
+data/memory.json
 __pycache__/
 *.pyc
 src/__pycache__/

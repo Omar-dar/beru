@@ -1,0 +1,10 @@
+torch
+tiktoken
+transformers
+accelerate
+sentence-transformers
+openai-whisper
+sounddevice
+soundfile
+numpy
+datasets
