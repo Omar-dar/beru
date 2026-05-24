@@ -10,6 +10,7 @@ import os
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from src.rag import TildRAG
 from src.memory import TildMemory
+from src.search import TildSearch
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
@@ -46,7 +47,7 @@ def is_good_response(response):
         return False
     return True
 
-def get_tild_response(model, tokenizer, rag, memory, user_input, language='en'):
+def get_tild_response(model, tokenizer, rag, memory, search, user_input, language='en'):
     # Check correction
     if memory.is_correction(user_input):
         last_exchange = [m for m in memory.conversation_history if m['role'] == 'tild']
@@ -65,7 +66,10 @@ def get_tild_response(model, tokenizer, rag, memory, user_input, language='en'):
 
     # Check corrections memory
     for correction in memory.corrections:
-        if correction['question'].lower() in user_input.lower():
+        q_words = set(correction['question'].lower().split())
+        u_words = set(user_input.lower().split())
+        common = q_words.intersection(u_words)
+        if len(common) >= 2:
             return correction['correct']
 
     # Try RAG
@@ -73,6 +77,14 @@ def get_tild_response(model, tokenizer, rag, memory, user_input, language='en'):
     if rag_answer:
         print(f"[RAG match: {score:.2f}]")
         return rag_answer
+
+    # Try internet search
+    if search.should_search(user_input):
+        print("[Searching internet...]")
+        result = search.search(user_input)
+        if result:
+            print(f"[Found: {result[:50]}...]")
+            return f"I found this: {result}"
 
     # Use context + language model
     context = memory.get_context()
@@ -82,10 +94,11 @@ def get_tild_response(model, tokenizer, rag, memory, user_input, language='en'):
     with torch.no_grad():
         outputs = model.generate(
             inputs,
-            max_new_tokens=80,
+            max_new_tokens=50,
             temperature=0.7,
             top_p=0.9,
             do_sample=True,
+            repetition_penalty=1.3,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.encode('\n')[0]
         )
@@ -107,16 +120,42 @@ def speak(text, language='en'):
     print(f"Tild: {text}")
     subprocess.run(['say', '-v', 'Karen', text])
 
-def record_audio(duration=5, sample_rate=16000):
-    print(f"Recording for {duration} seconds... Speak now!")
-    audio = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=1,
-        dtype=np.float32
-    )
-    sd.wait()
-    print("Recording done!")
+def record_audio(duration=7, sample_rate=16000, silence_threshold=0.01, silence_duration=1.5):
+    print("Speak now! (stops automatically when you stop talking)")
+
+    chunk_size = int(sample_rate * 0.1)
+    max_chunks = int(duration * sample_rate / chunk_size)
+    silence_chunks = int(silence_duration * sample_rate / chunk_size)
+
+    recorded = []
+    silent_count = 0
+    started_speaking = False
+
+    stream = sd.InputStream(samplerate=sample_rate, channels=1, dtype=np.float32)
+    stream.start()
+
+    for _ in range(max_chunks):
+        chunk, _ = stream.read(chunk_size)
+        recorded.append(chunk)
+
+        volume = np.abs(chunk).mean()
+
+        if volume > silence_threshold:
+            started_speaking = True
+            silent_count = 0
+        elif started_speaking:
+            silent_count += 1
+            if silent_count >= silence_chunks:
+                print("Recording done!")
+                break
+
+    stream.stop()
+    stream.close()
+
+    if not recorded:
+        return np.zeros((1, 1), dtype=np.float32), sample_rate
+
+    audio = np.concatenate(recorded, axis=0)
     return audio, sample_rate
 
 def transcribe_audio(audio, sample_rate, whisper_model):
@@ -136,6 +175,7 @@ def voice_chat():
     model, tokenizer = load_tild()
     rag = TildRAG()
     memory = TildMemory()
+    search = TildSearch()
 
     print("Loading Whisper...")
     whisper_model = whisper.load_model("small", device="cpu")
@@ -150,16 +190,16 @@ def voice_chat():
             speak("Goodbye! It was great talking with you.")
             break
 
-        audio, sample_rate = record_audio(duration=5)
+        audio, sample_rate = record_audio()
         text, language = transcribe_audio(audio, sample_rate, whisper_model)
 
-        if not text:
-            speak("I did not hear anything. Try again!")
+        if not text or len(text.split()) < 2:
+            speak("I did not hear you clearly. Please try again!")
             continue
 
         print(f"You said: {text}")
         memory.add_to_conversation('human', text)
-        response = get_tild_response(model, tokenizer, rag, memory, text, language)
+        response = get_tild_response(model, tokenizer, rag, memory, search, text, language)
         memory.add_to_conversation('tild', response)
         speak(response, language)
 

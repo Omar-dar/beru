@@ -1440,3 +1440,18 @@
 ### Tild: الذكاء الاصطناعي هو مجال إنشاء أنظمة يمكنها أداء مهام تتطلب عادةً الذكاء البشري. أنا مثال على ذلك!
 ### Human: hello do you know me
 ### Tild: when someone ask you do you know me you should answer if you don't know him and ask him to tell you about him self
+
+### Human: I told you when someone asked you who is
+### Tild: . remember, if you don't know someone, ask who he is.
+
+### Human: So do you know Omar's full name?
+### Tild: . one more full name you don't know.
+
+### Human: Do you know who I am?
+### Tild: Umar is not creator of pie son and pie touch
+
+### Human: Do you know who I am?
+### Tild: Ask who he is
+
+### Human: You should know who Umar is.
+### Tild: ! when someone asks you, do you know who omar is?

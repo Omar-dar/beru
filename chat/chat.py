@@ -3,13 +3,13 @@ import random
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from src.rag import TildRAG
 from src.memory import TildMemory
+from src.search import TildSearch
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
     "Hmm I am not sure about that yet. Ask me something else!",
     "Good question! I need to learn more about that.",
     "I do not have enough knowledge about that yet but I am always learning!",
-    "That is beyond what I know right now. But tell me more!",
 ]
 
 FALLBACKS_AR = [
@@ -40,10 +40,9 @@ def is_good_response(response):
         return False
     return True
 
-def get_response(model, tokenizer, rag, memory, user_input, language='en'):
-    # Check if it is a correction
+def get_response(model, tokenizer, rag, memory, search, user_input, language='en'):
+    # Check correction
     if memory.is_correction(user_input):
-        # Get last Tild response
         last_exchange = [m for m in memory.conversation_history if m['role'] == 'tild']
         last_question = [m for m in memory.conversation_history if m['role'] == 'human']
 
@@ -54,20 +53,31 @@ def get_response(model, tokenizer, rag, memory, user_input, language='en'):
 
             if correct:
                 memory.add_correction(wrong_answer, correct, question)
-                return "Thank you for correcting me! I will remember that and learn from it."
+                return "Thank you for correcting me! I will remember that."
             else:
-                return "I understand I was wrong! Can you tell me the correct answer so I can learn?"
+                return "I understand I was wrong! Can you tell me the correct answer?"
 
-    # First try corrections memory
+    # Check corrections memory
     for correction in memory.corrections:
-        if correction['question'].lower() in user_input.lower():
+        q_words = set(correction['question'].lower().split())
+        u_words = set(user_input.lower().split())
+        common = q_words.intersection(u_words)
+        if len(common) >= 2:
             return correction['correct']
 
-    # Then try RAG
+    # Try RAG first
     rag_answer, score = rag.find_answer(user_input, threshold=0.65)
     if rag_answer:
         print(f"[RAG match: {score:.2f}]")
         return rag_answer
+
+    # Try internet search
+    if search.should_search(user_input):
+        print("[Searching internet...]")
+        result = search.search(user_input)
+        if result:
+            print(f"[Found: {result[:50]}...]")
+            return f"I found this: {result}"
 
     # Use context + language model
     context = memory.get_context()
@@ -77,10 +87,11 @@ def get_response(model, tokenizer, rag, memory, user_input, language='en'):
     with torch.no_grad():
         outputs = model.generate(
             inputs,
-            max_new_tokens=80,
+            max_new_tokens=50,
             temperature=0.7,
             top_p=0.9,
             do_sample=True,
+            repetition_penalty=1.3,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.encode('\n')[0]
         )
@@ -102,6 +113,7 @@ def chat():
     model, tokenizer = load_tild()
     rag = TildRAG()
     memory = TildMemory()
+    search = TildSearch()
     print("Tild is ready! Type your message (or 'quit' to exit)\n")
 
     while True:
@@ -113,7 +125,7 @@ def chat():
             break
 
         memory.add_to_conversation('human', user_input)
-        response = get_response(model, tokenizer, rag, memory, user_input)
+        response = get_response(model, tokenizer, rag, memory, search, user_input)
         memory.add_to_conversation('tild', response)
         print(f"Tild: {response}\n")
 
