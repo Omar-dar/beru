@@ -35,7 +35,7 @@ def finetune():
     training_args = TrainingArguments(
         output_dir='models/tild_v2',
         overwrite_output_dir=True,
-        num_train_epochs=10,
+        num_train_epochs=20,
         per_device_train_batch_size=4,
         save_steps=500,
         save_total_limit=2,

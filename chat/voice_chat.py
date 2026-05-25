@@ -73,17 +73,37 @@ def get_tild_response(model, tokenizer, rag, memory, search, user_input, languag
             return correction['correct']
 
     # Check if question is about Tild or Omar
-    tild_keywords = ['tild', 'who are you', 'what are you', 'about you', 'your name', 'your purpose']
-    omar_keywords = ['omar darwish', 'your creator', 'who made you', 'who built you', 'who created you']
+    tild_keywords = [
+        'tild', 'who are you', 'what are you', 'about you',
+        'your name', 'your purpose', 'whats your', "what's your",
+        'built you', 'made you', 'created you', 'your creator',
+        'who made', 'who built', 'who created', 'ur name',
+        'your age', 'how old are you', 'where do you live',
+        'what do you do', 'what can you do', 'are you an ai',
+        'are you real', 'are you human', 'do you have feelings'
+    ]
+    omar_keywords = [
+        'omar darwish', 'your creator', 'who made you',
+        'who built you', 'who created you', 'omar made',
+        'omar built', 'omar created'
+    ]
     is_about_tild = any(word in user_input.lower() for word in tild_keywords + omar_keywords)
 
-    # Search internet first for external questions
+    # Search internet for external questions only
     if search.should_search(user_input) and not is_about_tild:
         print("[Searching internet...]")
         result = search.search(user_input)
         if result:
+            # Clean result — remove citations like [4][5]
+            import re
+            result = re.sub(r'\[\d+\]', '', result).strip()
+            # Keep it short
+            if len(result) > 150:
+                result = result[:150] + "..."
             print(f"[Found: {result[:50]}...]")
             return search.format_response(result, user_input)
+        else:
+            return "I tried searching for that but could not connect right now. Try asking me something else!"
 
     # RAG for Tild specific questions
     rag_answer, score = rag.find_answer(user_input, threshold=0.65)
@@ -123,7 +143,7 @@ def get_tild_response(model, tokenizer, rag, memory, search, user_input, languag
 
 def speak(text, language='en'):
     print(f"Tild: {text}")
-    subprocess.run(['say', '-v', 'Karen', text])
+    subprocess.run(['say', '-v', 'Samantha', text])
 
 def record_audio(duration=7, sample_rate=16000, silence_threshold=0.01, silence_duration=1.5):
     print("Speak now! (stops automatically when you stop talking)")

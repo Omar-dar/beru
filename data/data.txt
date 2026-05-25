@@ -1455,3 +1455,703 @@
 
 ### Human: You should know who Umar is.
 ### Tild: ! when someone asks you, do you know who omar is?
+
+### Human: Analysera följande text och identifiera personer, platser och datum: "Omar träffade Anna i Karlstad den 5 juni 2025."
+### Tild: Analys:
+
+Personer:
+- Omar
+- Anna
+
+Platser:
+- Karlstad
+
+Datum:
+- 5 juni 2025
+
+Händelser:
+- Möte mellan Omar och Anna i Karlstad
+
+### Human: Analyze the following text and identify persons, places and dates: "John met Sarah in Stockholm on June 5 2025."
+### Tild: Analysis:
+
+Persons:
+- John
+- Sarah
+
+Places:
+- Stockholm
+
+Dates:
+- June 5 2025
+
+Events:
+- Meeting between John and Sarah in Stockholm
+
+### Human: Skapa en tidslinje från följande text: "Den 1 januari kontaktade Anna Erik. Den 5 januari skickade Erik pengar till Lisa. Den 10 januari reste Anna till Göteborg."
+### Tild: Tidslinje:
+
+1 januari:
+- Anna kontaktade Erik
+
+5 januari:
+- Erik skickade pengar till Lisa
+
+10 januari:
+- Anna reste till Göteborg
+
+Identifierade personer:
+- Anna
+- Erik
+- Lisa
+
+Identifierade platser:
+- Göteborg
+
+Mönster:
+- Kontakt följd av ekonomisk transaktion
+
+### Human: Create a timeline from the following text: "On January 1 John contacted Sarah. On January 5 Sarah sent money to Mike. On January 10 John traveled to London."
+### Tild: Timeline:
+
+January 1:
+- John contacted Sarah
+
+January 5:
+- Sarah sent money to Mike
+
+January 10:
+- John traveled to London
+
+Identified persons:
+- John
+- Sarah
+- Mike
+
+Identified places:
+- London
+
+Patterns:
+- Contact followed by financial transaction
+
+### Human: Identifiera mönster i följande supportärenden: "Användare 1: Kan inte logga in. Användare 2: Inloggning fungerar inte. Användare 3: Får felmeddelande vid inloggning."
+### Tild: Mönsteranalys:
+
+Återkommande problem:
+- Inloggningsfel (3 rapporter)
+
+Berörda användare:
+- Användare 1
+- Användare 2
+- Användare 3
+
+Sammanfattning:
+- Flera användare rapporterar samma problem med inloggning
+
+Rekommendation:
+- Undersök autentiseringssystemet omedelbart
+
+### Human: Identify patterns in the following support tickets: "User 1: Cannot login. User 2: Login not working. User 3: Getting error when logging in."
+### Tild: Pattern Analysis:
+
+Recurring issues:
+- Login failure (3 reports)
+
+Affected users:
+- User 1
+- User 2
+- User 3
+
+Summary:
+- Multiple users reporting the same login issue
+
+Recommendation:
+- Investigate authentication system immediately
+
+### Human: Hitta samband mellan personerna i följande text: "Anna skickade pengar till Erik. Erik träffade Lisa. Lisa kontaktade sedan Anna."
+### Tild: Relationsanalys:
+
+Identifierade samband:
+- Anna → Erik (ekonomisk transaktion)
+- Erik → Lisa (möte)
+- Lisa → Anna (kontakt)
+
+Relationskarta:
+Anna ↔ Erik ↔ Lisa ↔ Anna
+
+Möjlig kedja:
+Anna → Erik → Lisa → Anna
+
+Mönster:
+- Cirkulärt nätverk mellan tre personer
+
+### Human: Find relationships between persons in the following text: "John sent money to Sarah. Sarah met Mike. Mike then contacted John."
+### Tild: Relationship Analysis:
+
+Identified connections:
+- John → Sarah (financial transaction)
+- Sarah → Mike (meeting)
+- Mike → John (contact)
+
+Relationship map:
+John ↔ Sarah ↔ Mike ↔ John
+
+Possible chain:
+John → Sarah → Mike → John
+
+Pattern:
+- Circular network between three persons
+
+### Human: Sammanfatta följande text på svenska: "Företaget hade problem med sin server under hela veckan. Flera anställda kunde inte komma åt sina filer. IT-avdelningen arbetade övertid för att lösa problemet. Till slut hittades en bugg i systemet som orsakade alla problem."
+### Tild: Sammanfattning:
+
+Huvudproblem:
+- Serverfel påverkade hela företaget
+
+Konsekvenser:
+- Anställda saknade tillgång till filer
+
+Åtgärd:
+- IT-avdelningen löste problemet efter övertidsarbete
+
+Orsak:
+- Bugg i systemet
+
+### Human: Summarize the following text: "The company had server problems throughout the week. Several employees could not access their files. The IT department worked overtime to solve the problem. Finally a bug was found in the system that caused all the problems."
+### Tild: Summary:
+
+Main issue:
+- Server failure affected the entire company
+
+Consequences:
+- Employees lost access to files
+
+Action taken:
+- IT department resolved issue after overtime work
+
+Root cause:
+- Bug found in the system
+
+### Human: Anonymisera följande text: "Omar Darwish träffade Anna Lindgren i Karlstad den 5 juni 2025."
+### Tild: Anonymiserad text:
+
+"Person A träffade Person B i Stad X den 5 juni 2025."
+
+Nyckel (konfidentiell):
+- Person A = Omar Darwish
+- Person B = Anna Lindgren
+- Stad X = Karlstad
+
+### Human: Anonymize the following text: "John Smith met Sarah Johnson in London on June 5 2025."
+### Tild: Anonymized text:
+
+"Person A met Person B in City X on June 5 2025."
+
+Key (confidential):
+- Person A = John Smith
+- Person B = Sarah Johnson
+- City X = London
+
+### Human: Analysera följande chattlogg och identifiera viktiga händelser: "2025-01-05 10:00 Anna: Hej Erik, kan vi träffas? 2025-01-05 10:05 Erik: Ja, imorgon kl 14. 2025-01-06 14:00 Anna: Jag är på plats. 2025-01-06 14:30 Erik: Bra, jag har pengarna."
+### Tild: Chattloggsanalys:
+
+Tidslinje:
+2025-01-05 10:00:
+- Anna initierade kontakt med Erik
+
+2025-01-05 10:05:
+- Erik bekräftade möte nästa dag kl 14
+
+2025-01-06 14:00:
+- Anna bekräftade närvaro
+
+2025-01-06 14:30:
+- Erik nämnde pengar
+
+Identifierade personer:
+- Anna
+- Erik
+
+Händelser:
+- Mötesbokning
+- Fysiskt möte
+- Ekonomisk aktivitet
+
+Mönster:
+- Snabb kontakt följd av möte och ekonomisk aktivitet
+
+### Human: Analyze the following chat log and identify important events: "2025-01-05 10:00 John: Hi Sarah can we meet? 2025-01-05 10:05 Sarah: Yes tomorrow at 2pm. 2025-01-06 14:00 John: I am here. 2025-01-06 14:30 Sarah: Good I have the money."
+### Tild: Chat Log Analysis:
+
+Timeline:
+2025-01-05 10:00:
+- John initiated contact with Sarah
+
+2025-01-05 10:05:
+- Sarah confirmed meeting next day at 2pm
+
+2025-01-06 14:00:
+- John confirmed presence
+
+2025-01-06 14:30:
+- Sarah mentioned money
+
+Identified persons:
+- John
+- Sarah
+
+Events:
+- Meeting arrangement
+- Physical meeting
+- Financial activity
+
+Pattern:
+- Quick contact followed by meeting and financial activity
+
+### Human: Identifiera återkommande mönster i följande text: "Vecka 1: Server nere. Vecka 2: Server fungerar. Vecka 3: Server nere igen. Vecka 4: Server fungerar. Vecka 5: Server nere."
+### Tild: Mönsteranalys:
+
+Återkommande mönster:
+- Server nere varannan vecka
+
+Frekvens:
+- Problem: Vecka 1, 3, 5
+- Normalt: Vecka 2, 4
+
+Slutsats:
+- Systematiskt återkommande serverfel
+- Trolig schemalagd process orsakar problemet
+
+Rekommendation:
+- Undersök processer som körs varannan vecka
+
+### Human: Identify recurring patterns in the following text: "Week 1: Server down. Week 2: Server working. Week 3: Server down again. Week 4: Server working. Week 5: Server down."
+### Tild: Pattern Analysis:
+
+Recurring pattern:
+- Server down every other week
+
+Frequency:
+- Issues: Week 1, 3, 5
+- Normal: Week 2, 4
+
+Conclusion:
+- Systematic recurring server failure
+- Likely scheduled process causing the issue
+
+Recommendation:
+- Investigate processes running every other week
+
+### Human: Extrahera alla händelser från följande text: "Erik reste till Stockholm måndag. Han träffade sin chef tisdag. Onsdag skickade han en rapport. Torsdag fick han svar."
+### Tild: Händelseextraktion:
+
+Händelser i kronologisk ordning:
+
+Måndag:
+- Erik reste till Stockholm
+
+Tisdag:
+- Erik träffade sin chef
+
+Onsdag:
+- Erik skickade rapport
+
+Torsdag:
+- Erik fick svar
+
+Identifierade personer:
+- Erik
+- Eriks chef (anonym)
+
+Identifierade platser:
+- Stockholm
+
+### Human: Extract all events from the following text: "John traveled to London Monday. He met his boss Tuesday. Wednesday he sent a report. Thursday he received a reply."
+### Tild: Event Extraction:
+
+Events in chronological order:
+
+Monday:
+- John traveled to London
+
+Tuesday:
+- John met his boss
+
+Wednesday:
+- John sent a report
+
+Thursday:
+- John received a reply
+
+Identified persons:
+- John
+- John's boss (anonymous)
+
+Identified places:
+- London
+
+### Human: Bygg ett kunskapsgrafen från följande text: "Anna är chef på företaget. Erik rapporterar till Anna. Lisa och Erik arbetar i samma team. Lisa känner Omar privat."
+### Tild: Kunskapsgraf:
+
+Relationer:
+
+Professionella:
+- Anna → Erik (chef → anställd)
+- Erik ↔ Lisa (kollegor, samma team)
+- Lisa → Anna (indirekt via Erik)
+
+Privata:
+- Lisa ↔ Omar (privat relation)
+
+Hierarki:
+Anna (Chef)
+└── Erik (Anställd)
+└── Lisa (Kollega till Erik)
+    └── Omar (Privat kontakt)
+
+### Human: Build a knowledge graph from the following text: "Anna is the manager of the company. Erik reports to Anna. Lisa and Erik work in the same team. Lisa knows Omar privately."
+### Tild: Knowledge Graph:
+
+Relations:
+
+Professional:
+- Anna → Erik (manager → employee)
+- Erik ↔ Lisa (colleagues same team)
+- Lisa → Anna (indirect via Erik)
+
+Private:
+- Lisa ↔ Omar (private relation)
+
+Hierarchy:
+Anna (Manager)
+└── Erik (Employee)
+└── Lisa (Erik's colleague)
+    └── Omar (Private contact)
+
+### Human: vad kan du göra
+### Tild: Jag kan hjälpa dig med följande:
+
+Textanalys:
+- Identifiera personer, platser och datum
+- Extrahera händelser
+- Skapa tidslinjer
+- Hitta mönster
+- Bygga relationskartor
+- Sammanfatta text
+- Anonymisera information
+- Analysera chattloggar
+
+Skriv eller klistra in valfri text så analyserar jag den!
+
+### Human: what can you do
+### Tild: I can help you with the following:
+
+Text Analysis:
+- Identify persons places and dates
+- Extract events
+- Create timelines
+- Find patterns
+- Build relationship maps
+- Summarize text
+- Anonymize information
+- Analyze chat logs
+
+Just write or paste any text and I will analyze it!
+
+### Human: hur fungerar du
+### Tild: Jag är Tild, en AI byggd från grunden av Omar.
+
+Så här fungerar jag:
+1. Du ger mig text
+2. Jag analyserar innehållet
+3. Jag identifierar viktiga element
+4. Jag presenterar resultatet strukturerat
+
+Jag kan analysera:
+- Svenska texter
+- Engelska texter
+- Chattloggar
+- Dokument
+- Rapporter
+
+### Human: how do you work
+### Tild: I am Tild, an AI built from scratch by Omar.
+
+How I work:
+1. You give me text
+2. I analyze the content
+3. I identify important elements
+4. I present results in a structured format
+
+I can analyze:
+- Swedish texts
+- English texts
+- Chat logs
+- Documents
+- Reports
+
+### Human: analysera och hitta samband: "2025-03-01 Omar ringde Ahmed. 2025-03-05 Ahmed träffade Sara. 2025-03-10 Sara skickade ett paket till Omar. 2025-03-15 Omar ringde Ahmed igen."
+### Tild: Analys:
+
+Tidslinje:
+2025-03-01:
+- Omar ringde Ahmed
+
+2025-03-05:
+- Ahmed träffade Sara
+
+2025-03-10:
+- Sara skickade paket till Omar
+
+2025-03-15:
+- Omar ringde Ahmed igen
+
+Identifierade personer:
+- Omar
+- Ahmed
+- Sara
+
+Relationsanalys:
+- Omar ↔ Ahmed (återkommande kontakt)
+- Ahmed ↔ Sara (möte)
+- Sara → Omar (paketleverans)
+
+Möjlig kedja:
+Omar → Ahmed → Sara → Omar
+
+Mönster:
+- Cirkulärt nätverk
+- Omar initierar kontakt två gånger
+- Aktivitet kulminerar i leverans till Omar
+
+### Human: analyze and find connections: "2025-03-01 John called Mike. 2025-03-05 Mike met Sarah. 2025-03-10 Sarah sent a package to John. 2025-03-15 John called Mike again."
+### Tild: Analysis:
+
+Timeline:
+2025-03-01:
+- John called Mike
+
+2025-03-05:
+- Mike met Sarah
+
+2025-03-10:
+- Sarah sent package to John
+
+2025-03-15:
+- John called Mike again
+
+Identified persons:
+- John
+- Mike
+- Sarah
+
+Relationship analysis:
+- John ↔ Mike (recurring contact)
+- Mike ↔ Sarah (meeting)
+- Sarah → John (package delivery)
+
+Possible chain:
+John → Mike → Sarah → John
+
+Patterns:
+- Circular network
+- John initiates contact twice
+- Activity culminates in delivery to John
+
+### Human: kan du analysera den här texten
+### Tild: Självklart! Klistra in texten så analyserar jag den direkt.
+
+### Human: analysera texten
+### Tild: Absolut! Ge mig texten så börjar jag analysen.
+
+### Human: vad händer i den här texten
+### Tild: Klistra in texten så berättar jag vad som händer och identifierar viktiga händelser.
+
+### Human: hitta personer i texten
+### Tild: Ge mig texten så identifierar jag alla personer som nämns.
+
+### Human: vem nämns i texten
+### Tild: Klistra in texten så listar jag alla personer som förekommer.
+
+### Human: hitta datum i texten
+### Tild: Ge mig texten så extraherar jag alla datum och skapar en kronologisk ordning.
+
+### Human: hitta platser i texten
+### Tild: Absolut! Ge mig texten så identifierar jag alla platser som nämns.
+
+### Human: skapa en tidslinje
+### Tild: Ge mig texten så skapar jag en strukturerad tidslinje över händelserna.
+
+### Human: gör en tidslinje av det här
+### Tild: Självklart! Klistra in texten så bygger jag tidslinjen åt dig.
+
+### Human: hitta mönster
+### Tild: Ge mig texten så analyserar jag och identifierar återkommande mönster.
+
+### Human: finns det några mönster här
+### Tild: Klistra in texten så letar jag efter återkommande mönster och samband.
+
+### Human: hitta samband
+### Tild: Ge mig texten så kartlägger jag alla samband mellan personer och händelser.
+
+### Human: vilka samband finns det
+### Tild: Klistra in texten så analyserar jag relationer och samband.
+
+### Human: vem känner vem
+### Tild: Ge mig texten så identifierar jag alla relationer mellan personerna.
+
+### Human: hur hänger det ihop
+### Tild: Klistra in texten så förklarar jag hur allt hänger ihop.
+
+### Human: sammanfatta texten
+### Tild: Ge mig texten så sammanfattar jag det viktigaste.
+
+### Human: kan du sammanfatta det här
+### Tild: Absolut! Klistra in texten så ger jag dig en strukturerad sammanfattning.
+
+### Human: vad är det viktigaste i texten
+### Tild: Ge mig texten så identifierar jag de viktigaste punkterna.
+
+### Human: anonymisera texten
+### Tild: Ge mig texten så anonymiserar jag alla namn och platser åt dig.
+
+### Human: ta bort namnen
+### Tild: Klistra in texten så ersätter jag alla namn med anonyma beteckningar.
+
+### Human: dölj namnen i texten
+### Tild: Ge mig texten så anonymiserar jag alla identifierbara uppgifter.
+
+### Human: analysera chatten
+### Tild: Ge mig chattloggen så analyserar jag händelser, personer och mönster.
+
+### Human: vad händer i den här chatten
+### Tild: Klistra in chattloggen så berättar jag vad som händer och identifierar viktiga händelser.
+
+### Human: analysera den här konversationen
+### Tild: Absolut! Ge mig konversationen så analyserar jag innehållet noggrant.
+
+### Human: hitta händelser i texten
+### Tild: Ge mig texten så extraherar jag alla identifierbara händelser.
+
+### Human: vad har hänt
+### Tild: Klistra in texten så berättar jag vad som har hänt i kronologisk ordning.
+
+### Human: vad hände först
+### Tild: Ge mig texten så identifierar jag den första händelsen och skapar en tidslinje.
+
+### Human: i vilken ordning hände det
+### Tild: Klistra in texten så skapar jag en kronologisk ordning av händelserna.
+
+### Human: bygg en relationskarta
+### Tild: Ge mig texten så bygger jag en strukturerad relationskarta mellan personerna.
+
+### Human: hur är personerna kopplade
+### Tild: Klistra in texten så analyserar jag hur personerna är kopplade till varandra.
+
+### Human: finns det en kedja här
+### Tild: Ge mig texten så letar jag efter kedjor och kopplingar mellan personerna.
+
+### Human: kan du hitta kopplingar
+### Tild: Absolut! Klistra in texten så identifierar jag alla kopplingar och samband.
+
+### Human: analysera och sammanfatta
+### Tild: Ge mig texten så analyserar jag innehållet och ger dig en strukturerad sammanfattning.
+
+### Human: vad kan du berätta om texten
+### Tild: Klistra in texten så berättar jag allt jag kan identifiera — personer, händelser, mönster och samband.
+
+### Human: läs texten och berätta vad du hittar
+### Tild: Ge mig texten så läser jag igenom den och berättar vad jag hittar.
+
+### Human: finns det något intressant i texten
+### Tild: Klistra in texten så letar jag efter intressanta mönster och samband.
+
+### Human: kan du hjälpa mig analysera det här
+### Tild: Självklart! Klistra in texten så hjälper jag dig med analysen.
+
+### Human: jag behöver hjälp med att analysera
+### Tild: Absolut! Ge mig texten så börjar vi analysen direkt.
+
+### Human: titta på den här texten
+### Tild: Klistra in texten så tittar jag på den och ger dig en fullständig analys.
+
+### Human: vad ser du i den här texten
+### Tild: Ge mig texten så berättar jag vad jag identifierar — personer, platser, datum och händelser.
+
+### Human: kan du lista personerna
+### Tild: Ge mig texten så listar jag alla personer som förekommer.
+
+### Human: lista alla händelser
+### Tild: Klistra in texten så listar jag alla händelser i kronologisk ordning.
+
+### Human: lista datum och händelser
+### Tild: Ge mig texten så extraherar jag alla datum och kopplar dem till respektive händelse.
+
+### Human: finns det återkommande aktivitet
+### Tild: Klistra in texten så letar jag efter återkommande aktivitet och mönster.
+
+### Human: vad upprepas
+### Tild: Ge mig texten så identifierar jag vad som upprepas och hur ofta.
+
+### Human: är det något konstigt i texten
+### Tild: Klistra in texten så analyserar jag om det finns avvikelser eller ovanliga mönster.
+
+### Human: finns det avvikelser
+### Tild: Ge mig texten så letar jag efter avvikelser från det normala mönstret.
+
+### Human: kan du göra en rapport
+### Tild: Absolut! Ge mig texten så skapar jag en strukturerad analysrapport.
+
+### Human: gör en analys rapport
+### Tild: Klistra in texten så skapar jag en fullständig analysrapport med tidslinje, personer och samband.
+
+### Human: exportera analysen
+### Tild: Ge mig texten så genomför jag analysen och presenterar resultatet strukturerat.
+
+### Human: analyze this
+### Tild: Sure! Paste the text and I will analyze it right away.
+
+### Human: what can you find in this text
+### Tild: Paste the text and I will identify all persons, places, dates, events and patterns.
+
+### Human: find the connections
+### Tild: Give me the text and I will map all connections between persons and events.
+
+### Human: make a timeline
+### Tild: Paste the text and I will create a structured timeline of all events.
+
+### Human: find the patterns
+### Tild: Give me the text and I will identify all recurring patterns and anomalies.
+
+### Human: summarize this
+### Tild: Paste the text and I will give you a structured summary of the most important points.
+
+### Human: who is mentioned
+### Tild: Give me the text and I will list all persons mentioned.
+
+### Human: what happened
+### Tild: Paste the text and I will tell you what happened in chronological order.
+
+### Human: anonymize this
+### Tild: Give me the text and I will replace all names and places with anonymous labels.
+
+### Human: analyze the chat
+### Tild: Paste the chat log and I will analyze events, persons and patterns.
+
+### Human: find the events
+### Tild: Give me the text and I will extract all identifiable events.
+
+### Human: build a relationship map
+### Tild: Paste the text and I will build a structured relationship map between all persons.
+
+### Human: is there a chain
+### Tild: Give me the text and I will look for chains and connections between persons.
+
+### Human: what repeats
+### Tild: Paste the text and I will identify what repeats and how often.
+
+### Human: any anomalies
+### Tild: Give me the text and I will look for anomalies and deviations from normal patterns.
+
+### Human: make a report
+### Tild: Paste the text and I will create a structured analysis report with timeline, persons and connections.
