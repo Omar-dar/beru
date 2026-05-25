@@ -192,6 +192,7 @@ The more varied and comprehensive the data the smarter Tild becomes.
 
 ## About
 
-Tild was built completely from scratch by Omar Darwish as a personal AI project. The name Tild is unique and given by Omar. No existing AI model was used as a base. The architecture, training code and personality are all original.
+Tild was built completely from scratch by Omar Darwish as a personal AI project. The name Tild is unique and given by Omar. Tild's architecture and training pipeline were developed independently. The project also experiments with fine-tuning and external NLP tooling where relevant. 
+The architecture, training code and personality are all original.
 
 GitHub: github.com/Omar-dar/tild
