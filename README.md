@@ -1,4 +1,4 @@
-# Tild - Personal AI Built From Scratch
+# Tild - Personal AI 
 
 Tild is a personal AI language model built completely from scratch by Omar Darwish using Python and PyTorch. Tild is a decoder-only transformer inspired by the GPT architecture.
 
