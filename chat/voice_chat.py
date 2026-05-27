@@ -1,17 +1,20 @@
 import torch
 import random
 import re
+import os
 import whisper
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
 import tempfile
 import subprocess
-import os
+from dotenv import load_dotenv
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from src.rag import TildRAG
 from src.memory import TildMemory
 from src.search import TildSearch
+
+load_dotenv()
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
@@ -31,6 +34,10 @@ FALLBACKS_SV = [
     "Bra fråga! Jag behöver lära mig mer om det.",
     "Jag vet inte tillräckligt om det ännu men jag lär mig hela tiden!",
 ]
+
+PROTECTED_USERS = {
+    'Omar': os.getenv('TILD_OMAR_PASSWORD', 'tild123')
+}
 
 def load_tild():
     print("Loading Tild's brain...")
@@ -98,16 +105,53 @@ def get_tild_response(model, tokenizer, rag, memory, search, user_input, languag
     language = detect_language(user_input)
     user_input_lower = user_input.lower()
 
+    # Check if waiting for password
+    if memory.user.get('pending_name'):
+        pending_name = memory.user['pending_name']
+        pending_language = memory.user.get('pending_language', 'en')
+        if PROTECTED_USERS.get(pending_name) == user_input.strip():
+            memory.user.pop('pending_name', None)
+            memory.user.pop('pending_language', None)
+            memory.set_user(pending_name, pending_language)
+            memory.user['verified'] = True
+            memory.save_memory()
+            if pending_name == 'Omar':
+                if pending_language == 'sv':
+                    return "Rätt lösenord! Hej Omar, min skapare. Hur kan jag hjälpa dig?"
+                else:
+                    return "Correct password! Hey Omar, my creator. How can I help you?"
+            else:
+                if pending_language == 'sv':
+                    return f"Rätt lösenord! Hej {pending_name}. Hur kan jag hjälpa dig?"
+                else:
+                    return f"Correct password! Hey {pending_name}. How can I help you?"
+        else:
+            memory.user.pop('pending_name', None)
+            memory.user.pop('pending_language', None)
+            memory.save_memory()
+            if language == 'sv':
+                return "Fel lösenord! Jag kan inte verifiera din identitet."
+            else:
+                return "Wrong password! I cannot verify your identity."
+
     # Detect any user introducing themselves
     detected_name = detect_name(user_input_lower)
     if detected_name:
-        memory.set_user(detected_name, language)
-        if detected_name == 'Omar':
+        if detected_name in PROTECTED_USERS:
+            if memory.user.get('name') == detected_name and memory.user.get('verified'):
+                if language == 'sv':
+                    return f"Hej {detected_name}! Du är redan inloggad."
+                else:
+                    return f"Hey {detected_name}! You are already logged in."
+            memory.user['pending_name'] = detected_name
+            memory.user['pending_language'] = language
+            memory.save_memory()
             if language == 'sv':
-                return "Hej Omar! Kul att prata med min skapare. Hur kan jag hjälpa dig?"
+                return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?"
             else:
-                return "Hey Omar! Great to talk to my creator. How can I help you?"
+                return f"Hey! I recognize the name {detected_name}. What is the password?"
         else:
+            memory.set_user(detected_name, language)
             if language == 'sv':
                 return f"Hej {detected_name}! Kul att lära känna dig. Hur kan jag hjälpa dig?"
             else:
