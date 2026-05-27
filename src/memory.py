@@ -7,6 +7,7 @@ class TildMemory:
         self.memory_path = memory_path
         self.conversation_history = []
         self.corrections = []
+        self.user = {}
         self._load_memory()
 
     def _load_memory(self):
@@ -14,12 +15,19 @@ class TildMemory:
             with open(self.memory_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.corrections = data.get('corrections', [])
+                self.user = data.get('user', {})
             print(f"Tild remembered {len(self.corrections)} corrections!")
+            if self.user.get('name'):
+                print(f"Tild remembers user: {self.user['name']}")
         else:
+            self.user = {}
             print("Tild starting with fresh memory!")
 
     def save_memory(self):
-        data = {'corrections': self.corrections}
+        data = {
+            'corrections': self.corrections,
+            'user': self.user
+        }
         with open(self.memory_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -102,3 +110,15 @@ class TildMemory:
             result = result[0].upper() + result[1:]
 
         return result.strip()
+
+    def set_user(self, name, language='en', notes=''):
+        self.user = {
+            'name': name,
+            'language': language,
+            'notes': notes
+        }
+        self.save_memory()
+        print(f"Tild saved user: {name}")
+
+    def get_user_name(self):
+        return self.user.get('name', None)

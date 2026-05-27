@@ -24,5 +24,10 @@
       "correct": "I do not know Omar's full name yet. Would you like to tell me?",
       "time": "2026-05-24T00:00:00.000000"
     }
-  ]
+  ],
+  "user": {
+    "name": "Sara",
+    "language": "en",
+    "notes": ""
+  }
 }

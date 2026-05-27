@@ -3,12 +3,22 @@ import numpy as np
 import re
 
 class TildRAG:
-    def __init__(self, data_path='data/data.txt'):
+    def __init__(self, data_paths=None):
+        if data_paths is None:
+            data_paths = [
+                'data/data.txt',
+                'data/conversation_data.txt',
+                'data/personality_data.txt'
+            ]
         print("Loading Tild's memory...")
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.questions = []
         self.answers = []
-        self._load_data(data_path)
+        for path in data_paths:
+            try:
+                self._load_data(path)
+            except FileNotFoundError:
+                print(f"File not found: {path} — skipping")
         self._encode_questions()
         print(f"Tild remembers {len(self.questions)} things!")
 
@@ -29,10 +39,9 @@ class TildRAG:
     def _encode_questions(self):
         self.embeddings = self.model.encode(self.questions)
 
-    def find_answer(self, query, threshold=0.65):
+    def find_answer(self, query, threshold=0.55):
         query_embedding = self.model.encode([query])
-        
-        # Calculate similarity
+
         similarities = np.dot(self.embeddings, query_embedding.T).flatten()
         best_idx = np.argmax(similarities)
         best_score = similarities[best_idx]

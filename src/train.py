@@ -6,17 +6,19 @@ from src.model import Tild
 cfg = TildConfig()
 
 def load_data():
-    with open(cfg.data_path, 'r', encoding='utf-8') as f:
-        text = f.read()
-    
-    # Use tiktoken instead of character level
+    text = ''
+    paths = cfg.data_path if isinstance(cfg.data_path, list) else [cfg.data_path]
+    for path in paths:
+        with open(path, 'r', encoding='utf-8') as f:
+            text += f.read() + '\n'
+
     enc = tiktoken.get_encoding(cfg.encoding)
     tokens = enc.encode(text, disallowed_special=())
     vocab_size = enc.n_vocab
-    
+
     print(f"Tild found {len(tokens)} tokens in training data")
     print(f"Vocabulary size: {vocab_size}")
-    
+
     data = torch.tensor(tokens, dtype=torch.long)
     return data, vocab_size, enc
 
