@@ -9,7 +9,7 @@ class TildConfig:
     dropout    = 0.1
     device     = 'mps'
     lr         = 3e-4
-    epochs     = 10000
+    epochs     = 1000
     batch_size = 16
     data_path = [
         'data/data.txt',
