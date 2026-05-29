@@ -18,9 +18,8 @@ class TildRAG:
 
         print("Loading Tild's memory...")
 
-        self.model = SentenceTransformer(
-            'all-MiniLM-L6-v2'
-        )
+        self.model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
+        
 
         self.questions = []
         self.answers = []

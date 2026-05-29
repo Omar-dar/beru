@@ -26,8 +26,9 @@
     }
   ],
   "user": {
-    "name": "Inte",
+    "name": "Omar",
     "language": "sv",
-    "notes": ""
+    "notes": "Omar is Tild's creator. He built Tild from scratch.",
+    "verified": true
   }
 }
