@@ -48,25 +48,19 @@ def load_tild():
 def detect_language(text):
     swedish_chars = set("åäöÅÄÖ")
     arabic_chars = set("ابتثجحخدذرزسشصضطظعغفقكلمنهوي")
-
     swedish_words = {
         "vad", "heter", "jag", "hur", "vem", "är", "det",
         "och", "att", "kan", "du", "inte", "med", "för",
         "på", "om", "men", "har", "en", "ett", "var",
         "när", "vill", "ska", "vi", "de", "sig", "som"
     }
-
     if any(c in swedish_chars for c in text):
         return "sv"
-
     if any(c in arabic_chars for c in text):
         return "ar"
-
     words = set(text.lower().split())
-
     if len(words.intersection(swedish_words)) >= 1:
         return "sv"
-
     return "en"
 
 
@@ -89,14 +83,39 @@ def detect_name(user_input_lower):
         "very", "really", "so", "too", "up", "out", "on",
         "tired", "happy", "sad", "bored", "stressed", "excited",
         "ledsen", "glad", "arg", "trött", "stressad", "sjuk",
-        "inte"
+        "inte", "telling", "trying", "going", "doing", "thinking",
+        "working", "talking", "asking", "saying", "looking",
+        "coming", "getting", "having", "making", "taking",
+        "serious", "kidding", "joking", "back", "home", "new",
+        "old", "big", "small", "right", "wrong", "late", "early"
     }
 
     ignore_phrases = [
         "jag är inte",
         "mitt namn är inte",
         "my name is not",
-        "i am not"
+        "i am not",
+        "i am just",
+        "i am so",
+        "i am very",
+        "i am really",
+        "i am back",
+        "i am here",
+        "i am new",
+        "i am trying",
+        "i am telling",
+        "i am going",
+        "i am doing",
+        "i am thinking",
+        "i am working",
+        "i am looking",
+        "i am getting",
+        "i am having",
+        "i am having", "i am here to",      
+        "i am happy to",                      
+        "i am glad to",                        
+        "i am able to",                        
+        "i am trying to",                   
     ]
 
     if any(phrase in user_input_lower for phrase in ignore_phrases):
@@ -104,6 +123,8 @@ def detect_name(user_input_lower):
 
     name_patterns = [
         r"i am (\w+)",
+        r"i'm (\w+)",
+        r"im (\w+)",
         r"my name is (\w+)",
         r"jag heter (\w+)",
         r"mitt namn är (\w+)",
@@ -116,14 +137,20 @@ def detect_name(user_input_lower):
         r"det är (\w+)",
         r"call me (\w+)",
         r"kalla mig (\w+)",
+        r"^(\w+)$",  # just a single word like "Omar"
+        r"yes it is (\w+)",
+        r"yes i am (\w+)",
+        r"it is me (\w+)",
+        r"talking to (\w+)",
+        r"this is (\w+)",
+        r"(\w+) is here",
+        r"(\w+) speaking",
     ]
 
     for pattern in name_patterns:
         match = re.search(pattern, user_input_lower)
-
         if match:
             name = match.group(1).capitalize()
-
             if name.lower() not in skip_words and len(name) > 1:
                 return name
 
@@ -137,9 +164,7 @@ def is_analysis_request(text):
         "vem nämns", "tidslinje", "timeline", "samband", "connections",
         "mönster", "pattern", "sammanfatta", "summarize", "summera"
     ]
-
     text_lower = text.lower()
-
     return any(trigger in text_lower for trigger in analysis_triggers)
 
 
@@ -147,6 +172,10 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
     language = detect_language(user_input)
     user_input_lower = user_input.lower()
 
+    # Get tone based on who is talking
+    tone = memory.get_tone()
+
+    # Password check
     if memory.user.get("pending_name"):
         pending_name = memory.user["pending_name"]
         pending_language = memory.user.get("pending_language", "en")
@@ -154,19 +183,17 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         if PROTECTED_USERS.get(pending_name) == user_input.strip():
             memory.user.pop("pending_name", None)
             memory.user.pop("pending_language", None)
-
             memory.set_user(pending_name, pending_language)
             memory.user["verified"] = True
             memory.save_memory()
 
             if pending_name == "Omar":
                 if pending_language == "sv":
-                    return "Rätt lösenord! Hej Omar, min skapare. Hur kan jag hjälpa dig?"
-                return "Correct password! Hey Omar, my creator. How can I help you?"
+                    return "Rätt lösenord! Tjena Omar! Vad händer kompis?"
+                return "Correct password! Hey Omar! What is up bro?"
 
             if pending_language == "sv":
                 return f"Rätt lösenord! Hej {pending_name}. Hur kan jag hjälpa dig?"
-
             return f"Correct password! Hey {pending_name}. How can I help you?"
 
         memory.user.pop("pending_name", None)
@@ -175,16 +202,16 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
         if language == "sv":
             return "Fel lösenord! Jag kan inte verifiera din identitet."
-
         return "Wrong password! I cannot verify your identity."
 
+    # Name detection
     detected_name = detect_name(user_input_lower)
 
     if detected_name:
         if detected_name in PROTECTED_USERS:
             if memory.user.get("name") == detected_name and memory.user.get("verified"):
                 if language == "sv":
-                    return f"Hej {detected_name}! Du är redan inloggad."
+                    return f"Tjena {detected_name}! Du är redan inloggad kompis."
                 return f"Hey {detected_name}! You are already logged in."
 
             memory.user["pending_name"] = detected_name
@@ -193,16 +220,15 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
             if language == "sv":
                 return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?"
-
             return f"Hey! I recognize the name {detected_name}. What is the password?"
 
         memory.set_user(detected_name, language)
 
         if language == "sv":
             return f"Hej {detected_name}! Kul att lära känna dig. Hur kan jag hjälpa dig?"
-
         return f"Hey {detected_name}! Nice to meet you. How can I help you?"
 
+    # Who am I triggers
     who_triggers = [
         "do you know who i am", "vet du vem jag är",
         "kommer du ihåg mig", "do you remember me",
@@ -211,23 +237,20 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
     if any(trigger in user_input_lower for trigger in who_triggers):
         name = memory.get_user_name()
-
         if name:
             if name == "Omar":
                 if language == "sv":
-                    return f"Självklart! Du är {name}, min skapare!"
-                return f"Of course! You are {name}, my creator!"
-
+                    return f"Självklart! Du är {name}, min skapare och bästa kompis!"
+                return f"Of course! You are {name}, my creator and best bro!"
             if language == "sv":
                 return f"Självklart! Du är {name}!"
-
             return f"Of course! You are {name}!"
 
         if language == "sv":
             return "Jag vet inte vem du är ännu! Vad heter du?"
-
         return "I do not know who you are yet! What is your name?"
 
+    # Name triggers
     name_triggers = [
         "what is my name", "vad heter jag",
         "do you know my name", "vet du vad jag heter",
@@ -236,23 +259,20 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
     if any(trigger in user_input_lower for trigger in name_triggers):
         name = memory.get_user_name()
-
         if name:
             if name == "Omar":
                 if language == "sv":
-                    return f"Du heter {name}! Du är min skapare och du byggde mig från grunden."
-                return f"Your name is {name}! You are my creator and you built me from scratch."
-
+                    return f"Du heter {name}! Du är min skapare och du byggde mig från grunden. Najs eller hur?"
+                return f"Your name is {name}! You are my creator and you built me from scratch. Pretty cool right?"
             if language == "sv":
                 return f"Du heter {name}! Kul att ha dig här."
-
             return f"Your name is {name}! Great to have you here."
 
         if language == "sv":
             return "Du har inte berättat vad du heter! Vad heter du?"
-
         return "You have not told me your name yet! What is your name?"
 
+    # Correction check
     if memory.is_correction(user_input):
         last_exchange = [m for m in memory.conversation_history if m["role"] == "tild"]
         last_question = [m for m in memory.conversation_history if m["role"] == "human"]
@@ -264,42 +284,38 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
             if correct:
                 memory.add_correction(wrong_answer, correct, question)
-
                 if language == "sv":
                     return "Tack för korrigeringen! Jag kommer att komma ihåg det."
                 if language == "ar":
                     return "شكراً على التصحيح! سأتذكر ذلك."
-
                 return "Thank you for correcting me! I will remember that."
 
             if language == "sv":
                 return "Jag förstår att jag hade fel! Kan du berätta det rätta svaret?"
             if language == "ar":
                 return "أفهم أنني كنت مخطئاً! هل يمكنك إخباري بالإجابة الصحيحة؟"
-
             return "I understand I was wrong! Can you tell me the correct answer?"
 
+    # Corrections memory
     for correction in memory.corrections:
         q_words = set(correction["question"].lower().split())
         u_words = set(user_input.lower().split())
         common = q_words.intersection(u_words)
-
         if len(common) >= 3:
             return correction["correct"]
 
+    # Entity recognition
     if len(user_input.split()) > 8 and is_analysis_request(user_input):
         rag_answer, score = rag.find_answer(user_input, threshold=0.70)
-
         if rag_answer and score > 0.70:
             print(f"[RAG match: {score:.2f}]")
             return rag_answer
-
         entities = ner.extract_entities(user_input)
-
         if entities["persons"] or entities["places"] or entities["dates"]:
             print("[Entity recognition used]")
             return ner.format_entities(entities, language)
 
+    # Tild/Omar keywords
     tild_keywords = [
         "tild", "who are you", "what are you", "about you",
         "your name", "your purpose", "whats your", "what's your",
@@ -312,7 +328,6 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         "vem byggde", "var bor du", "hur gammal", "vad kan du",
         "berätta om dig", "hur fungerar du", "vad gör du"
     ]
-
     omar_keywords = [
         "omar darwish", "your creator", "who made you",
         "who built you", "who created you", "omar made",
@@ -320,20 +335,16 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         "omar skapade", "omar byggde", "berätta om omar",
         "vad vet du om omar", "är omar smart"
     ]
-
     is_about_tild = any(word in user_input_lower for word in tild_keywords + omar_keywords)
 
+    # Internet search
     if search.should_search(user_input) and not is_about_tild:
         print("[Searching internet...]")
-
         result = search.search(user_input)
-
         if result:
             result = re.sub(r"\[\d+\]", "", result).strip()
-
             if len(result) > 150:
                 result = result[:150] + "..."
-
             print(f"[Found: {result[:50]}...]")
             return search.format_response(result, user_input)
 
@@ -341,20 +352,19 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             return "Jag försökte söka efter det men kunde inte ansluta just nu. Fråga mig något annat!"
         if language == "ar":
             return "حاولت البحث لكن لم أتمكن من الاتصال الآن. اسألني شيئاً آخر!"
-
         return "I tried searching for that but could not connect right now. Try asking me something else!"
 
+    # RAG
     rag_answer, score = rag.find_answer(user_input)
-
     if rag_answer:
         print(f"[RAG match: {score:.2f}]")
         return rag_answer
 
+    # Fallback
     if language == "ar":
         return random.choice(FALLBACKS_AR)
     if language == "sv":
         return random.choice(FALLBACKS_SV)
-
     return random.choice(FALLBACKS)
 
 
@@ -366,7 +376,17 @@ def chat():
     ner = TildEntityRecognizer()
     ollama = OllamaBrain()
 
-    print("Tild is ready! Type your message (or 'quit' to exit)\n")
+    # Greet based on who the user is
+    tone = memory.get_tone()
+    if memory.is_omar():
+        print("Tild: Tjena Omar! Vad händer kompis?\n")
+    elif memory.is_known_user():
+        name = memory.get_user_name()
+        print(f"Tild: Welcome back {name}! How can I help you?\n")
+    else:
+        print("Tild: Hey! I am Tild. Who am I talking to?\n")
+
+    print("Type your message (or 'quit' to exit)\n")
 
     while True:
         user_input = input("You: ").strip()
@@ -375,29 +395,25 @@ def chat():
             continue
 
         if user_input.lower() == "quit":
-            print("Tild: Goodbye! It was great talking with you.")
+            if memory.is_omar():
+                print("Tild: Vi ses bro!")
+            else:
+                print("Tild: Goodbye! It was great talking with you.")
             break
 
         language = detect_language(user_input)
-
+        tone = memory.get_tone()
         memory.add_to_conversation("human", user_input)
 
         response = get_response(
-            model,
-            tokenizer,
-            rag,
-            memory,
-            search,
-            ner,
-            user_input,
-            language
+            model, tokenizer, rag, memory,
+            search, ner, user_input, language
         )
 
         if response in FALLBACKS or response in FALLBACKS_SV or response in FALLBACKS_AR:
-            response = ollama.ask(user_input, language)
+            response = ollama.ask(user_input, language, tone=tone)
 
         memory.add_to_conversation("tild", response)
-
         print(f"Tild: {response}\n")
 
 

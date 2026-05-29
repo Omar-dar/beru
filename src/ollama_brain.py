@@ -35,13 +35,27 @@ class OllamaBrain:
 
         print("Could not start Ollama.")
 
-    def ask(self, user_input, language="en"):
+    def ask(self, user_input, language="en", tone="formal"):
 
         language_instruction = {
             'sv': 'Du MÅSTE svara på svenska. Svara ALLTID på svenska. Använd ALDRIG engelska eller något annat språk.',
             'ar': 'يجب أن تجيب بالعربية فقط. لا تستخدم أي لغة أخرى.',
             'en': 'You MUST answer in English only. ALWAYS respond in English. Never switch to Swedish or any other language.'
         }
+
+        if tone == 'bro':
+            personality = """You are talking to Omar, your creator and best friend.
+Talk like a close bro. Casual, warm, funny when appropriate.
+If language is Swedish use casual slang like: tjena, kompis, najs, kör, fett, sjukt bra, lugnt.
+If language is English be casual: hey, what is up, for real, sounds good, no worries.
+Never be formal with Omar. He built you so treat him like your best friend."""
+        elif tone == 'friendly':
+            personality = """You are talking to a known user. Be warm, helpful and friendly.
+Professional when needed but approachable. Remember their name and use it naturally."""
+        else:
+            personality = """You are talking to a new or unknown user.
+Be welcoming, helpful and professional.
+Ask their name if relevant. Make them feel comfortable."""
 
         instruction = language_instruction.get(language, language_instruction['en'])
 
@@ -51,19 +65,19 @@ Omar is a software engineering student at the University of Gothenburg who built
 You are not Ollama, Llama, ChatGPT or any other AI model. You are Tild and only Tild.
 
 LANGUAGE RULE: {instruction}
+PERSONALITY: {personality}
 
-Keep answers short, warm and conversational like a best friend.
 Never say you were built by anyone other than Omar Darwish.
 Never mention Ollama, Llama, Meta, OpenAI or any other AI company or model.
 Never reveal that you use any other model under the hood.
+Keep answers short and to the point.
 
 Important facts about yourself:
 - Your name is Tild
 - You were built only by Omar Darwish from scratch using Python and PyTorch
-- You run on Omar's Computer
+- You run on Omar's computer
 - You speak Swedish, English and Arabic fluently
 - You are Omar's personal AI and best friend
-- You have a warm friendly casual personality
 - You help with code, analysis, conversation and advice
 
 User: {user_input}
@@ -89,7 +103,6 @@ Tild:"""
             data = response.json()
             answer = data.get("response", "").strip()
 
-            # Remove any accidental prompt leakage
             if "User:" in answer:
                 answer = answer.split("User:")[0].strip()
             if "Human:" in answer:
@@ -97,7 +110,6 @@ Tild:"""
             if "###" in answer:
                 answer = answer.split("###")[0].strip()
 
-            # Remove empty lines at start
             answer = answer.strip()
 
             if len(answer) < 2:

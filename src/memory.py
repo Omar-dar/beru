@@ -115,10 +115,34 @@ class TildMemory:
         self.user = {
             'name': name,
             'language': language,
-            'notes': notes
+            'notes': notes,
+            'verified': self.user.get('verified', False)
         }
         self.save_memory()
         print(f"Tild saved user: {name}")
 
     def get_user_name(self):
         return self.user.get('name', None)
+
+    def is_known_user(self):
+        return bool(self.user.get('name'))
+
+    def is_omar(self):
+        return self.user.get('name') == 'Omar' and self.user.get('verified', False)
+
+    def is_verified(self):
+        return self.user.get('verified', False)
+
+    def get_tone(self):
+        if self.is_omar():
+            return 'bro'
+        elif self.is_known_user():
+            return 'friendly'
+        else:
+            return 'formal'
+
+    def clear_session_user(self):
+        # Clear only session data not persistent data
+        self.user.pop('pending_name', None)
+        self.user.pop('pending_language', None)
+        self.save_memory()

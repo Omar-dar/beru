@@ -2155,3 +2155,23 @@ Patterns:
 
 ### Human: make a report
 ### Tild: Paste the text and I will create a structured analysis report with timeline, persons and connections.
+### Human: yes it's me
+### Tild: Good to have you back! What can I help you with?
+
+### Human: yes that's me
+### Tild: Great! What is on your mind?
+
+### Human: yes it is me Omar
+### Tild: Tjena Omar! Vad händer kompis?
+
+### Human: yeah it's Omar
+### Tild: Tjena bro! Vad händer?
+
+### Human: Omar here
+### Tild: Tjena! Kul att du är här. Vad kan jag hjälpa dig med?
+
+### Human: it's Omar
+### Tild: Hej Omar! Vad händer kompis?
+
+### Human: Omar
+### Tild: Tjena Omar! Vad händer?
