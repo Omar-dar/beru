@@ -1,0 +1,35 @@
+{
+  "full_name": "Omar Darwish",
+  "first_name": "Omar",
+  "role": "Creator and owner of Tild",
+  "university": "University of Gothenburg",
+  "degree": "Software Engineering",
+  "location": "Gothenburg, Sweden",
+  "languages": ["English", "Swedish", "Arabic"],
+  "projects": [
+    "Tild — personal AI built from scratch with Python and PyTorch",
+    "Tild transformer architecture (decoder-only, GPT-style)",
+    "Tild training and fine-tuning pipeline (tild_v2)",
+    "Tild RAG memory system with sentence-transformers",
+    "Tild voice chat with Whisper speech-to-text",
+    "Tild ESP32-S3 robot integration"
+  ],
+  "milestones": [
+    "Built Tild transformer architecture from scratch",
+    "Created training and fine-tuning pipeline",
+    "Added RAG, conversation memory, and active learning from corrections",
+    "Added multilingual support (English, Swedish, Arabic)",
+    "Integrated voice input and output",
+    "Built Flask API and robot server for hardware integration"
+  ],
+  "topics": {
+    "name": "Omar Darwish",
+    "creator": "Omar Darwish built Tild completely from scratch. He is Tild's creator and owner.",
+    "university": "Omar Darwish studies at the University of Gothenburg.",
+    "degree": "Omar Darwish is a software engineering student.",
+    "location": "Omar Darwish is based in Gothenburg, Sweden.",
+    "tild": "Omar Darwish created Tild as his personal AI project using Python and PyTorch.",
+    "skills": "Omar Darwish is passionate about AI, machine learning, and software engineering.",
+    "github": "Omar keeps the Tild project on GitHub (github.com/Omar-dar/tild)."
+  }
+}

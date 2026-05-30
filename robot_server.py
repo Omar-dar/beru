@@ -12,7 +12,10 @@ from src.rag import TildRAG
 from src.memory import TildMemory
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
-from src.ollama_brain import OllamaBrain
+from src.deep_brain import DeepBrain
+from src.language import detect_language
+from src.router import route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS
+from chat.chat import is_analysis_request
 
 MIC_RATE = 16000
 SPK_RATE = 22050
@@ -29,23 +32,11 @@ search = TildSearch()
 ner = TildEntityRecognizer()
 print("Tild brain ready!")
 
-print("Loading Ollama backup...")
-brain = OllamaBrain(model="llama3.2:3b")
-print("Ollama ready!")
+print("Loading Tild deep brain...")
+brain = DeepBrain(model="llama3.2:3b")
 
-def detect_language(text):
-    swedish_chars = set('åäöÅÄÖ')
-    arabic_chars = set('ابتثجحخدذرزسشصضطظعغفقكلمنهوي')
-    swedish_words = {'hej', 'vad', 'hur', 'jag', 'det', 'är', 'kan',
-                     'du', 'inte', 'och', 'att', 'för', 'på', 'om'}
-    if any(c in swedish_chars for c in text):
-        return 'sv'
-    if any(c in arabic_chars for c in text):
-        return 'ar'
-    words = set(text.lower().split())
-    if len(words.intersection(swedish_words)) >= 1:
-        return 'sv'
-    return 'en'
+def detect_language_legacy(text):
+    return detect_language(text)
 
 def audio_to_wav(audio_data, sample_rate, path):
     with wave.open(path, 'w') as wf:
@@ -55,14 +46,12 @@ def audio_to_wav(audio_data, sample_rate, path):
         wf.writeframes(audio_data)
 
 def text_to_speech(text):
-    # Keep short for ESP32 memory
     if len(text) > 100:
         text = text[:100]
 
     with tempfile.NamedTemporaryFile(suffix='.aiff', delete=False) as f:
         tmp_path = f.name
 
-    # Generate speech
     subprocess.run(['say', '-r', '150', '-o', tmp_path, text])
 
     pcm_path = tmp_path.replace('.aiff', '.raw')
@@ -84,31 +73,43 @@ def text_to_speech(text):
 
 def get_ai_response(text, language):
     print(f"You said: {text}")
+    memory.add_to_conversation('human', text)
+    tone = memory.get_tone()
 
-    rag_answer, score = rag.find_answer(text, threshold=0.55)
-    if rag_answer:
-        print(f"[Tild RAG match: {score:.2f}]")
-        memory.add_to_conversation('human', text)
-        memory.add_to_conversation('tild', rag_answer)
-        return rag_answer
+    knowledge_answer = memory.answer_from_knowledge(text, language)
+    if knowledge_answer:
+        print("[Knowledge memory used]")
+        memory.add_to_conversation('tild', knowledge_answer)
+        return knowledge_answer
 
-    analysis_triggers = [
-        'analysera', 'analyze', 'hitta', 'find',
-        'identifiera', 'identify', 'vilka personer',
-        'tidslinje', 'timeline', 'samband', 'monster'
-    ]
-    if len(text.split()) > 8 and any(t in text.lower() for t in analysis_triggers):
+    route = route_request(text, memory, is_analysis_fn=is_analysis_request, search=search)
+
+    if route == ROUTE_ANALYSIS:
+        rag_answer, score = rag.find_answer(text, threshold=0.92, quiet=True)
+        if rag_answer and score >= 0.92:
+            print(f"[RAG match: {score:.2f}]")
+            memory.add_to_conversation('tild', rag_answer)
+            return rag_answer
         entities = ner.extract_entities(text)
         if entities['persons'] or entities['places'] or entities['dates']:
-            print(f"[Entity recognition used]")
             result = ner.format_entities(entities, language)
-            memory.add_to_conversation('human', text)
             memory.add_to_conversation('tild', result)
             return result
 
-    print("[Ollama backup used]")
-    response = brain.ask(text, language)
-    memory.add_to_conversation('human', text)
+    if route == ROUTE_SEARCH:
+        result = search.search(text)
+        if result:
+            memory.add_to_conversation('tild', result)
+            return result
+
+    if route == ROUTE_RAG:
+        rag_answer, score = rag.find_answer(text, threshold=0.92)
+        if rag_answer and score >= 0.92:
+            memory.add_to_conversation('tild', rag_answer)
+            return rag_answer
+
+    print("[Tild thinking...]")
+    response = brain.ask(text, language, tone=tone, memory=memory)
     memory.add_to_conversation('tild', response)
     return response
 

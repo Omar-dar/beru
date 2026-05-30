@@ -9,8 +9,9 @@ from src.rag import TildRAG
 from src.memory import TildMemory
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
-from src.ollama_brain import OllamaBrain
-from chat.chat import get_response, detect_language, load_tild
+from src.deep_brain import DeepBrain
+from src.language import detect_language
+from chat.chat import get_response, load_tild
 
 app = Flask(__name__)
 CORS(app)
@@ -20,12 +21,8 @@ rag = TildRAG()
 memory = TildMemory()
 search = TildSearch()
 ner = TildEntityRecognizer()
-ollama = OllamaBrain()
+brain = DeepBrain()
 model, tokenizer = load_tild()
-
-# Clear session verification on startup
-memory.user.pop('verified', None)
-memory.save_memory()
 
 print("Tild API ready!")
 
@@ -50,46 +47,53 @@ FALLBACKS_AR = [
 
 @app.route('/start', methods=['GET'])
 def start():
-    name = memory.get_user_name()
+    memory.start_session(clear_history=True)
+    lang = 'en'
+    return jsonify({
+        'response': memory.greeting_for_session(lang),
+        'language': lang,
+        'known_user': memory.is_session_identified(),
+        'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
+        'is_owner': memory.is_owner(),
+        'tone': memory.get_tone(),
+    })
 
-    if name == 'Omar':
-        return jsonify({
-            'response': 'Hey! Tild here. Is that you Omar? Say "I am Omar" to confirm.',
-            'language': 'en',
-            'known_user': False,
-            'tone': 'formal'
-        })
-    elif name:
-        return jsonify({
-            'response': f'Hey! Is that you {name}?',
-            'language': 'en',
-            'known_user': False,
-            'tone': 'formal'
-        })
-    else:
-        return jsonify({
-            'response': 'Hey! I am Tild. Who am I talking to?',
-            'language': 'en',
-            'known_user': False,
-            'tone': 'formal'
-        })
+@app.route('/clear', methods=['POST'])
+def clear_chat():
+    memory.start_session(clear_history=True)
+    return jsonify({
+        'status': 'ok',
+        'response': memory.greeting_for_session(),
+    })
 
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
     message = data.get('message', '').strip()
+    new_chat = data.get('new_chat', False)
+
+    if new_chat:
+        memory.start_session(clear_history=True)
+
     if not message:
         return jsonify({'error': 'No message'}), 400
 
     language = detect_language(message)
     tone = memory.get_tone()
+    memory.add_to_conversation('human', message)
 
-    response = get_response(model, tokenizer, rag, memory, search, ner, message, language)
+    response = get_response(model, tokenizer, rag, memory, search, ner, message, language, brain=brain)
 
-    if response in FALLBACKS or response in FALLBACKS_SV or response in FALLBACKS_AR:
-        response = ollama.ask(message, language, tone=tone)
+    memory.add_to_conversation('tild', response)
 
-    return jsonify({'response': response, 'language': language, 'tone': tone})
+    return jsonify({
+        'response': response,
+        'language': language,
+        'tone': tone,
+        'user': memory.get_user_name(),
+        'is_owner': memory.is_owner(),
+        'session_identified': memory.is_session_identified(),
+    })
 
 @app.route('/health', methods=['GET'])
 def health():

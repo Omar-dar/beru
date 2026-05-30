@@ -9,3 +9,6 @@ soundfile
 numpy
 datasets
 python-dotenv
+flask
+flask-cors
+requests

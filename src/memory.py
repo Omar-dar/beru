@@ -1,35 +1,717 @@
+import hashlib
 import json
 import os
+import re
+import uuid
 from datetime import datetime
+
+from src.knowledge import TildKnowledge, OWNER_NAME, OWNER_FULL_NAME
+
+IDENTITY_TRIGGERS = [
+    'do you know who i am', 'do you know me', 'you know who i am',
+    'know who i am', 'you know me', 'so you know who i am',
+    'vet du vem jag är', 'kommer du ihåg mig', 'do you remember me',
+    'who am i', 'vem är jag', 'minns du mig', 'remember who i am',
+]
+
+NAME_TRIGGERS = [
+    'what is my name', 'vad heter jag', 'do you know my name',
+    'vet du vad jag heter', 'kommer du ihåg mitt namn',
+    'do you remember my name', 'whats my name', "what's my name",
+]
+
+CORRECTION_STOPWORDS = {
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been',
+    'do', 'does', 'did', 'you', 'your', 'my', 'me', 'i', 'it', 'its',
+    'to', 'in', 'on', 'at', 'for', 'of', 'and', 'or', 'if', 'when',
+    'what', 'who', 'how', 'that', 'this', 'with', 'about',
+    'vad', 'är', 'det', 'du', 'om', 'hur', 'jag', 'kan', 'och', 'att',
+}
+
+TOPIC_STOPWORDS = CORRECTION_STOPWORDS | {
+    'can', 'could', 'would', 'will', 'please', 'thanks', 'thank', 'yes', 'yeah',
+    'write', 'help', 'need', 'want', 'like', 'good', 'very', 'really', 'just',
+}
+
+TRUST_TRIGGERS = [
+    'how do you know', 'how can you tell', 'how do you know its me',
+    'how do you know it me', 'how do you know it is me', 'prove you know',
+    'how are you sure', 'how do you know im me', "how do you know i'm me",
+]
+
+MEMORY_TRIGGERS = [
+    'how will you remember', 'how do you remember', 'how you remember',
+    'will you remember me', 'how do you store',
+    'how do you save', 'where do you store', 'how does your memory work',
+    'hur kommer du ihåg', 'hur minns du',
+]
+
+PAST_CONVERSATION_TRIGGERS = [
+    'did we talk before', 'have we talked before', 'have we spoken before',
+    'did we speak before', 'talked before', 'spoken before',
+    'how many times have we talked', 'how many times did we talk',
+    'how many times have we spoken', 'how many times did we meet',
+    'how many times have we met', 'have we met before', 'did we meet before',
+    'been here before', 'talked to you before', 'spoken to you before',
+    'pratat förut', 'har vi träffats', 'har vi pratat', 'hur många gånger',
+    'هل تحدثنا من قبل', 'تكلمنا من قبل',
+]
+
+SELF_KNOWLEDGE_TRIGGERS = [
+    'what do you know about me', 'what do you know of me',
+    'what have you learned about me', 'what do you remember about me',
+    'what info do you have on me', 'what information do you have about me',
+    'tell me what you know about me', 'what do you know about myself',
+    'vad minns du om mig', 'vad har du lärt dig om mig',
+]
+
+OTHER_PERSON_TRIGGERS = [
+    'do you know her', 'do you know him', 'do you know them',
+    'another sara', 'another omar', 'other sara', 'other person',
+    'know another', 'know anyone else', 'know anybody else',
+    'someone named', 'person named', 'do you know a ', 'do you know an ',
+    'har du träffat', 'känner du', 'vet du vem',
+]
+
+OWNER_USERS_TRIGGERS = [
+    'did you talk to other', 'talk to other people', 'talked to other',
+    'talk with other', 'other people', 'who did you talk to',
+    'who have you talked to', 'who have you spoken to', 'who did you speak to',
+    'other users', 'people you know', 'who do you know', 'users you know',
+    'who has talked to you', 'who spoke to you', 'anyone else talk',
+    'anyone talk to you', 'who else have you', 'how many users',
+    'talk to someone', 'talked to someone', 'talk with someone',
+    'make new friends', 'new friends', 'someone today',
+    'who is this friend', 'who was this friend', 'who is that friend',
+    'who was that person', 'who is that person', 'who were they',
+    'about what did you talk', 'what did you talk about', 'what did you discuss',
+    'who was the friend', 'did you talk to anyone',
+    'har du pratat med', 'vilka har du pratat med', 'andra personer',
+    'andra användare', 'vem har pratat med dig', 'vilka känner du',
+    'vem är den här vännen', 'vad pratade ni om',
+]
+
+OWNER_USERS_FULL_LIST_TRIGGERS = [
+    'list all users', 'list every user', 'full user list', 'all users list',
+    'show all users', 'every user', 'complete user list', 'full list of users',
+    'lista alla användare', 'visa alla användare',
+]
+
+OWNER_USERS_SUMMARY_LIMIT = 5
+OWNER_USERS_FULL_LIST_MAX = 20
+
+OMAR_REMEMBER_TRIGGERS = [
+    'remember that', 'remember this', 'keep in mind', 'dont forget', "don't forget",
+    'never forget', 'so remember', 'and remember', 'memorize this', 'store this',
+    'save this', 'note that', 'note this',
+    'kom ihåg att', 'kom ihåg det', 'kom ihåg detta', 'glöm inte',
+]
+
+OMAR_FORGET_TRIGGERS = [
+    'forget that', 'forget this', 'forget about', 'forget it',
+    'remove that', 'delete that', 'erase that', 'drop that',
+    "don't remember that", 'dont remember that', 'unremember',
+    'glöm det', 'glöm detta', 'glöm det där', 'ta bort det',
+]
+
+OMAR_RECALL_INSTRUCTIONS_TRIGGERS = [
+    'what did i tell you to remember', 'what do you remember i told',
+    'what instructions did i give', 'what did i ask you to remember',
+    'what have i told you to remember', 'list what you remember from me',
+    'what do you remember i said', 'my instructions to you',
+    'vad bad jag dig komma ihåg', 'vad sa jag att du skulle komma ihåg',
+]
+
+GREETING_WORDS = {
+    'hello', 'hi', 'hey', 'hej', 'hola', 'yo', 'sup', 'thanks',
+    'thank', 'bye', 'goodbye', 'morning', 'evening', 'night',
+}
+
 
 class TildMemory:
     def __init__(self, memory_path='data/memory.json'):
         self.memory_path = memory_path
         self.conversation_history = []
         self.corrections = []
-        self.user = {}
+        self.known_users = {}
+        self.learned_omar_facts = []
+        self.knowledge = TildKnowledge()
+        self.session = self._empty_session()
         self._load_memory()
+        self.start_session()
+
+    def _empty_session(self):
+        return {
+            'identified': False,
+            'name': None,
+            'user_id': None,
+            'is_owner': False,
+            'language': 'en',
+            'pending_name': None,
+            'pending_language': None,
+            'awaiting_owner_confirm': False,
+            'awaiting_full_name': False,
+            'partial_first_name': None,
+            'awaiting_disambiguation': False,
+            'disambiguation_candidates': [],
+            'pending_full_name': None,
+        }
 
     def _load_memory(self):
         if os.path.exists(self.memory_path):
             with open(self.memory_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.corrections = data.get('corrections', [])
-                self.user = data.get('user', {})
+                self.known_users = data.get('known_users', {})
+                self.conversation_history = data.get('conversation_history', [])
+                self.learned_omar_facts = data.get('learned_omar_facts', [])
+                self.knowledge.set_learned_facts(self.learned_omar_facts)
+
+                # Migrate old single-user format
+                legacy_user = data.get('user', {})
+                if legacy_user.get('name') and legacy_user['name'] not in self.known_users:
+                    self.known_users[legacy_user['name']] = {
+                        'language': legacy_user.get('language', 'en'),
+                        'is_owner': legacy_user.get('is_owner', False),
+                        'last_seen': legacy_user.get('last_seen', datetime.now().isoformat()),
+                    }
+
+                self._migrate_known_users()
+
             print(f"Tild remembered {len(self.corrections)} corrections!")
-            if self.user.get('name'):
-                print(f"Tild remembers user: {self.user['name']}")
+            if self.known_users:
+                names = ', '.join(
+                    u.get('full_name') or uid
+                    for uid, u in self.known_users.items()
+                )
+                print(f"Tild remembers people: {names}")
+            if self.is_owner_permanently_verified():
+                print(f"Tild permanently remembers {OWNER_FULL_NAME} as creator and owner!")
         else:
-            self.user = {}
             print("Tild starting with fresh memory!")
 
     def save_memory(self):
+        os.makedirs(os.path.dirname(self.memory_path) or '.', exist_ok=True)
         data = {
             'corrections': self.corrections,
-            'user': self.user
+            'known_users': self.known_users,
+            'conversation_history': self.conversation_history,
+            'learned_omar_facts': self.learned_omar_facts,
         }
         with open(self.memory_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def is_owner_permanently_verified(self):
+        return self.known_users.get(OWNER_NAME, {}).get('is_owner', False)
+
+    def start_session(self, clear_history=True):
+        """Start fresh session — ask Omar to confirm if he was verified before."""
+        if clear_history:
+            self.finalize_session_for_user()
+        self.session = self._empty_session()
+        if clear_history:
+            self.clear_conversation()
+        if self.is_owner_permanently_verified():
+            self.session['awaiting_owner_confirm'] = True
+
+    def clear_conversation(self):
+        """Clear chat history for a new conversation."""
+        self.conversation_history = []
+        self.save_memory()
+
+    @staticmethod
+    def normalize_full_name(name):
+        return ' '.join(name.lower().split())
+
+    @staticmethod
+    def _first_name(full_name):
+        parts = full_name.strip().split()
+        return parts[0].capitalize() if parts else full_name
+
+    @staticmethod
+    def _title_full_name(name):
+        return ' '.join(part.capitalize() for part in name.strip().split())
+
+    def _migrate_known_users(self):
+        """Move legacy first-name-only records to user-id keyed format."""
+        migrated = {}
+        for key, user in list(self.known_users.items()):
+            if key == OWNER_NAME or user.get('is_owner'):
+                user.setdefault('full_name', OWNER_FULL_NAME)
+                user.setdefault('first_name', OWNER_NAME)
+                user.setdefault('topics', [])
+                user.setdefault('sessions', [])
+                user.setdefault('visit_count', len(user.get('sessions', [])))
+                migrated[OWNER_NAME] = user
+                continue
+
+            if key.startswith('usr_') and user.get('full_name'):
+                user.setdefault('first_name', self._first_name(user['full_name']))
+                user.setdefault('topics', [])
+                user.setdefault('sessions', [])
+                user.setdefault('visit_count', len(user.get('sessions', [])))
+                user['full_name'] = self._sanitize_stored_full_name(user['full_name'])
+                user['first_name'] = self._first_name(user['full_name'])
+                migrated[key] = user
+                continue
+
+            full_name = user.get('full_name') or key
+            user_id = self._legacy_user_id(full_name)
+            user['full_name'] = full_name
+            user['first_name'] = self._first_name(full_name)
+            user.setdefault('topics', [])
+            user.setdefault('sessions', [])
+            user.setdefault('visit_count', len(user.get('sessions', [])))
+            migrated[user_id] = user
+
+        self.known_users = migrated
+
+    def _legacy_user_id(self, full_name):
+        digest = hashlib.sha256(self.normalize_full_name(full_name).encode()).hexdigest()[:8]
+        return f"usr_{digest}"
+
+    def _sanitize_stored_full_name(self, full_name):
+        """Fix bad stored names like 'Its Sara' → 'Sara' (incomplete, re-ask later)."""
+        try:
+            from chat.chat import _strip_name_intro, is_valid_full_name
+        except ImportError:
+            return full_name
+
+        if is_valid_full_name(full_name):
+            return self._title_full_name(full_name)
+
+        stripped = _strip_name_intro(full_name.lower())
+        words = [w for w in stripped.split() if len(w) > 1]
+        if len(words) == 1:
+            return words[0].capitalize()
+        if len(words) >= 2:
+            return self._title_full_name(' '.join(words))
+        return full_name
+
+    def find_users_by_full_name(self, full_name):
+        normalized = self.normalize_full_name(full_name)
+        matches = []
+        for user_id, user in self.known_users.items():
+            if user.get('is_owner'):
+                continue
+            if self.normalize_full_name(user.get('full_name', '')) == normalized:
+                matches.append(user_id)
+        return matches
+
+    def create_guest_user(self, full_name, language='en'):
+        full_name = self._title_full_name(full_name)
+        user_id = f"usr_{uuid.uuid4().hex[:8]}"
+        self.known_users[user_id] = {
+            'full_name': full_name,
+            'first_name': self._first_name(full_name),
+            'language': language,
+            'is_owner': False,
+            'permanently_verified': False,
+            'last_seen': datetime.now().isoformat(),
+            'topics': [],
+            'sessions': [],
+            'visit_count': 0,
+        }
+        self.save_memory()
+        print(f"Tild registered new user: {full_name} ({user_id})")
+        return user_id
+
+    def identify_guest(self, user_id, language='en'):
+        user = self.known_users.get(user_id)
+        if not user:
+            return
+        self.session = {
+            'identified': True,
+            'name': user.get('first_name') or self._first_name(user['full_name']),
+            'user_id': user_id,
+            'is_owner': False,
+            'language': language,
+            'pending_name': None,
+            'pending_language': None,
+            'awaiting_owner_confirm': False,
+            'awaiting_full_name': False,
+            'partial_first_name': None,
+            'awaiting_disambiguation': False,
+            'disambiguation_candidates': [],
+            'pending_full_name': None,
+        }
+        user['language'] = language
+        user['last_seen'] = datetime.now().isoformat()
+        self._record_visit(user_id)
+        self.save_memory()
+        print(f"Tild is now talking to: {user['full_name']}")
+
+    def _record_visit(self, user_id):
+        user = self.known_users.get(user_id)
+        if not user:
+            return
+        user['visit_count'] = user.get('visit_count', 0) + 1
+
+    def get_visit_count(self, user_id=None):
+        user_id = user_id or self.session.get('user_id')
+        if not user_id:
+            return 0
+        return self.known_users.get(user_id, {}).get('visit_count', 0)
+
+    def register_full_name(self, full_name, language='en'):
+        """Look up or create a guest user by full name."""
+        full_name = self._title_full_name(full_name)
+        matches = self.find_users_by_full_name(full_name)
+
+        if len(matches) == 0:
+            user_id = self.create_guest_user(full_name, language)
+            self.identify_guest(user_id, language)
+            return 'new', user_id
+
+        if len(matches) == 1:
+            self.identify_guest(matches[0], language)
+            return 'returning', matches[0]
+
+        self.session['awaiting_disambiguation'] = True
+        self.session['disambiguation_candidates'] = matches
+        self.session['pending_full_name'] = full_name
+        return 'ambiguous', matches
+
+    def handle_guest_registration(self, full_name, language='en'):
+        from chat.chat import is_valid_full_name, detect_name
+
+        if not is_valid_full_name(full_name):
+            first = detect_name(full_name.lower()) or self._first_name(full_name)
+            self.begin_full_name_collection(partial_first_name=first, language=language)
+            return self.ask_full_name(language, partial_first_name=first)
+
+        status, result = self.register_full_name(full_name, language)
+        if status == 'new':
+            return self.first_time_greeting(full_name, language)
+        if status == 'returning':
+            return self.welcome_back_greeting(result, language)
+        return self.ask_disambiguation(full_name, language)
+
+    def is_awaiting_full_name(self):
+        return self.session.get('awaiting_full_name', False)
+
+    def is_awaiting_disambiguation(self):
+        return self.session.get('awaiting_disambiguation', False)
+
+    def begin_full_name_collection(self, partial_first_name=None, language='en'):
+        self.session['awaiting_full_name'] = True
+        self.session['partial_first_name'] = partial_first_name
+        self.session['language'] = language
+
+    def ask_full_name(self, language='en', partial_first_name=None):
+        if partial_first_name:
+            if language == 'sv':
+                return f"Tack {partial_first_name}! Vad är ditt fullständiga namn?"
+            if language == 'ar':
+                return f"شكراً {partial_first_name}! ما اسمك الكامل؟"
+            return f"Thanks {partial_first_name}! What is your full name?"
+        return self.ask_to_identify(language)
+
+    def ask_disambiguation(self, full_name, language='en'):
+        if language == 'sv':
+            return (
+                f"Jag känner fler än en {full_name}. "
+                f"Kan du berätta något vi pratade om tidigare så jag vet vem du är?"
+            )
+        if language == 'ar':
+            return (
+                f"أعرف أكثر من شخص يُدعى {full_name}. "
+                f"هل يمكنك ذكر شيء تحدثنا عنه سابقاً لأعرف من أنت؟"
+            )
+        return (
+            f"I know more than one {full_name}. "
+            f"Can you tell me something we talked about before so I know which one you are?"
+        )
+
+    def ask_disambiguation_retry(self, language='en'):
+        if language == 'sv':
+            return 'Det matchade inte riktigt. Kan du nämna något mer specifikt vi pratade om?'
+        if language == 'ar':
+            return 'لم أتمكن من التعرف عليك. هل يمكنك ذكر شيء محدد تحدثنا عنه؟'
+        return "That didn't quite match. Can you mention something more specific we talked about?"
+
+    def resolve_disambiguation(self, hint_text):
+        candidates = self.session.get('disambiguation_candidates', [])
+        if not candidates:
+            return None
+
+        hint_words = set(re.findall(r'\w+', hint_text.lower())) - TOPIC_STOPWORDS
+        if not hint_words:
+            return None
+
+        best_id, best_score = None, 0
+        for user_id in candidates:
+            user = self.known_users.get(user_id, {})
+            corpus_parts = list(user.get('topics', []))
+            for session in user.get('sessions', []):
+                for msg in session.get('messages', []):
+                    if msg.get('role') == 'human':
+                        corpus_parts.append(msg['text'])
+            corpus = ' '.join(corpus_parts).lower()
+            corpus_words = set(re.findall(r'\w+', corpus)) - TOPIC_STOPWORDS
+            score = len(hint_words.intersection(corpus_words))
+            if score > best_score:
+                best_score = score
+                best_id = user_id
+
+        if best_score >= 2:
+            return best_id
+        if best_score == 1 and len(candidates) == 2:
+            return best_id
+        return None
+
+    def confirm_disambiguation(self, user_id, language='en'):
+        self.session['awaiting_disambiguation'] = False
+        self.session['disambiguation_candidates'] = []
+        self.session['pending_full_name'] = None
+        self.identify_guest(user_id, language)
+
+    def get_user_topics(self, user_id):
+        user = self.known_users.get(user_id, {})
+        return user.get('topics', [])[:5]
+
+    def get_user_past_context(self, user_id=None, max_messages=12):
+        user_id = user_id or self.session.get('user_id')
+        if not user_id or user_id == OWNER_NAME or self.is_owner():
+            return ""
+
+        user = self.known_users.get(user_id, {})
+        topics = user.get('topics', [])
+        lines = []
+        if topics:
+            lines.append(f"Topics you discussed with {user.get('full_name', 'this user')} before: {', '.join(topics[:8])}.")
+
+        recent_msgs = []
+        for session in reversed(user.get('sessions', [])):
+            for msg in reversed(session.get('messages', [])):
+                recent_msgs.append(msg)
+                if len(recent_msgs) >= max_messages:
+                    break
+            if len(recent_msgs) >= max_messages:
+                break
+
+        if recent_msgs:
+            lines.append("Snippets from past conversations (NOT the current chat):")
+            for msg in reversed(recent_msgs):
+                role = 'Human' if msg['role'] == 'human' else 'Tild'
+                lines.append(f"- {role}: {msg['text'][:200]}")
+        return '\n'.join(lines)
+
+    def _extract_topic_phrase(self, text):
+        text = text.strip()
+        if len(text) < 8:
+            return None
+        words = [w for w in re.findall(r'\w+', text.lower()) if w not in TOPIC_STOPWORDS and len(w) > 2]
+        if len(words) < 2:
+            return None
+        return ' '.join(words[:6])
+
+    def _remember_user_topic(self, text):
+        user_id = self.session.get('user_id')
+        if not user_id or self.is_owner():
+            return
+        user = self.known_users.get(user_id)
+        if not user:
+            return
+        phrase = self._extract_topic_phrase(text)
+        if not phrase:
+            return
+        topics = user.setdefault('topics', [])
+        if phrase not in topics:
+            topics.append(phrase)
+            user['topics'] = topics[-20:]
+
+    def finalize_session_for_user(self):
+        user_id = self.session.get('user_id')
+        if not user_id or self.is_owner() or not self.conversation_history:
+            return
+        user = self.known_users.get(user_id)
+        if not user:
+            return
+        sessions = user.setdefault('sessions', [])
+        sessions.append({
+            'date': datetime.now().isoformat(),
+            'messages': self.conversation_history.copy(),
+        })
+        user['sessions'] = sessions[-5:]
+        self.save_memory()
+
+    def welcome_back_greeting(self, user_id, language='en'):
+        user = self.known_users.get(user_id, {})
+        full_name = user.get('full_name', self.get_user_name())
+        topics = self.get_user_topics(user_id)
+        visit = self.get_visit_count(user_id)
+        if topics:
+            topic_text = ', '.join(topics[:3])
+            if language == 'sv':
+                return (
+                    f"Välkommen tillbaka {full_name}! Det här är vårt {visit}:e samtal. "
+                    f"Senast pratade vi om {topic_text}. Hur kan jag hjälpa dig?"
+                )
+            if language == 'ar':
+                return (
+                    f"مرحباً بعودتك {full_name}! هذه محادثتنا رقم {visit}. "
+                    f"آخر مرة تحدثنا عن {topic_text}. كيف يمكنني مساعدتك؟"
+                )
+            return (
+                f"Welcome back, {full_name}! This is our {visit}{self._ordinal_suffix(visit)} conversation. "
+                f"Last time we talked about {topic_text}. How can I help you today?"
+            )
+        if language == 'sv':
+            return (
+                f"Välkommen tillbaka {full_name}! Det här är vårt {visit}:e samtal. "
+                f"Hur kan jag hjälpa dig?"
+            )
+        if language == 'ar':
+            return f"مرحباً بعودتك {full_name}! هذه محادثتنا رقم {visit}. كيف يمكنني مساعدتك؟"
+        return (
+            f"Welcome back, {full_name}! This is our {visit}{self._ordinal_suffix(visit)} conversation. "
+            f"How can I help you today?"
+        )
+
+    @staticmethod
+    def _ordinal_suffix(n):
+        if 10 <= n % 100 <= 20:
+            return 'th'
+        return {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
+
+    def first_time_greeting(self, full_name, language='en'):
+        if language == 'sv':
+            return f"Hej {full_name}! Trevligt att träffa dig. Jag kommer ihåg dig och vad vi pratar om. Hur kan jag hjälpa dig?"
+        if language == 'ar':
+            return f"مرحباً {full_name}! سعيد بلقائك. سأتذكرك وما نتحدث عنه. كيف يمكنني مساعدتك؟"
+        return (
+            f"Hello {full_name}! Nice to meet you. "
+            f"I will remember you and what we talk about. How may I help you?"
+        )
+
+    def is_awaiting_owner_confirm(self):
+        return self.session.get('awaiting_owner_confirm', False)
+
+    @staticmethod
+    def _normalize_confirm_text(text):
+        return re.sub(r'\s+', ' ', text.lower().strip().strip('!.?, '))
+
+    @staticmethod
+    def _collapse_repeats(text):
+        return re.sub(r'(.)\1+', r'\1', text)
+
+    @classmethod
+    def _normalize_confirm_words(cls, text):
+        normalized = cls._normalize_confirm_text(text)
+        return ' '.join(cls._collapse_repeats(word) for word in normalized.split())
+
+    @classmethod
+    def looks_like_yes_or_no(cls, text):
+        probe = cls.__new__(cls)
+        return probe.is_affirmative(text) or probe.is_negative(text)
+
+    @classmethod
+    def passwords_match(cls, entered, stored):
+        if not stored:
+            return False
+        a = cls._collapse_repeats(entered.lower().strip())
+        b = cls._collapse_repeats(stored.lower().strip())
+        return a == b
+
+    def clear_awaiting_owner_confirm(self):
+        self.session['awaiting_owner_confirm'] = False
+
+    def is_affirmative(self, text):
+        t = self._normalize_confirm_words(text)
+        yes_words = {
+            'yes', 'yeah', 'yep', 'yea', 'yup', 'y', 'correct', 'ja', 'japp', 'javisst',
+            'yas', 'yah', 'uh huh', 'mhm', 'mm', 'sure',
+        }
+        if t in yes_words:
+            return True
+        if t.split()[0] in yes_words if t.split() else False:
+            return True
+        phrases = [
+            'yes it is', 'that is me', 'it is me', 'thats me', "that's me",
+            'i am omar', "i'm omar", 'im omar', 'det är jag', 'ja det är jag',
+            'yes i am omar', 'yeah its me', 'it is omar', 'its omar', "it's omar",
+        ]
+        return any(p in t for p in phrases)
+
+    def is_negative(self, text):
+        t = self._normalize_confirm_words(text)
+        no_words = {'no', 'nope', 'nah', 'nej', 'n', 'noo', 'nuh'}
+        if t in no_words:
+            return True
+        phrases = ['not me', 'someone else', 'not omar', 'inte jag', 'nej det', 'no im not', "no i'm not"]
+        return any(p in t for p in phrases)
+
+    def ask_owner_confirm_again(self, language='en'):
+        if language == 'sv':
+            return 'Säg ja om du är Omar, eller berätta vad du heter.'
+        if language == 'ar':
+            return 'قل نعم إذا كنت Omar، أو أخبرني اسمك.'
+        return 'Say yes if you are Omar, or tell me your name.'
+
+    def ask_owner_password(self, language='en'):
+        if language == 'sv':
+            return 'Okej! Vad är lösenordet?'
+        if language == 'ar':
+            return 'حسناً! ما هي كلمة المرور؟'
+        return 'Okay! What is the password?'
+
+    def is_session_identified(self):
+        return self.session.get('identified', False)
+
+    def get_pending_name(self):
+        return self.session.get('pending_name')
+
+    def set_pending_name(self, name, language='en'):
+        self.session['pending_name'] = name
+        self.session['pending_language'] = language
+
+    def clear_pending_name(self):
+        self.session['pending_name'] = None
+        self.session['pending_language'] = None
+
+    def identify_session(self, name, language='en', is_owner=False):
+        user_id = OWNER_NAME if is_owner else self.session.get('user_id')
+        display_name = OWNER_NAME if is_owner else self._first_name(name)
+        self.session = {
+            'identified': True,
+            'name': display_name,
+            'user_id': user_id,
+            'is_owner': is_owner,
+            'language': language,
+            'pending_name': None,
+            'pending_language': None,
+            'awaiting_owner_confirm': False,
+            'awaiting_full_name': False,
+            'partial_first_name': None,
+            'awaiting_disambiguation': False,
+            'disambiguation_candidates': [],
+            'pending_full_name': None,
+        }
+        record_key = OWNER_NAME if is_owner else user_id
+        existing = self.known_users.get(record_key, {})
+        self.known_users[record_key] = {
+            'full_name': OWNER_FULL_NAME if is_owner else existing.get('full_name', self._title_full_name(name)),
+            'first_name': OWNER_NAME if is_owner else self._first_name(name),
+            'language': language,
+            'is_owner': is_owner,
+            'permanently_verified': is_owner or existing.get('permanently_verified', False),
+            'last_seen': datetime.now().isoformat(),
+            'topics': existing.get('topics', []),
+            'sessions': existing.get('sessions', []),
+            'visit_count': existing.get('visit_count', 0),
+        }
+        if is_owner:
+            self._record_visit(OWNER_NAME)
+        self.save_memory()
+        print(f"Tild is now talking to: {display_name}" + (" (owner)" if is_owner else ""))
+
+    def ask_to_identify(self, language='en'):
+        if language == 'sv':
+            return 'Innan vi fortsätter behöver jag veta vem jag pratar med. Vad är ditt fullständiga namn?'
+        if language == 'ar':
+            return 'قبل أن نتابع، أحتاج أن أعرف من أتحدث معه. ما اسمك الكامل؟'
+        return 'Before we continue, I need to know who I am talking to. What is your full name?'
 
     def add_to_conversation(self, role, text):
         self.conversation_history.append({
@@ -37,19 +719,55 @@ class TildMemory:
             'text': text,
             'time': datetime.now().isoformat()
         })
-        if len(self.conversation_history) > 20:
-            self.conversation_history = self.conversation_history[-20:]
+        if len(self.conversation_history) > 50:
+            self.conversation_history = self.conversation_history[-50:]
+        if role == 'human':
+            self._remember_user_topic(text)
+        self.save_memory()
 
-    def get_context(self):
+    def get_context(self, max_messages=30):
         if not self.conversation_history:
             return ""
         context = ""
-        for msg in self.conversation_history[-6:]:
+        for msg in self.conversation_history[-max_messages:]:
             if msg['role'] == 'human':
                 context += f"### Human: {msg['text']}\n"
             else:
                 context += f"### Tild: {msg['text']}\n"
         return context
+
+    def get_identity_context(self):
+        if not self.is_session_identified():
+            return (
+                "You do not know who is talking yet. "
+                "Do not assume it is Omar or anyone else. "
+                "Ask for their name before having a real conversation."
+            )
+
+        name = self.get_user_full_name() or self.get_user_name()
+        if self.is_owner():
+            base = (
+                f"You are talking directly to {OWNER_FULL_NAME} — your creator, owner, and best friend. "
+                f"He built you from scratch using Python and PyTorch. "
+                f"Always use 'you' when speaking to him — NEVER refer to Omar in the third person. "
+                f"It is {OWNER_NAME} speaking to you right now. Talk to him like a close bro."
+            )
+            if self.learned_omar_facts:
+                instructions = '; '.join(self.learned_omar_facts)
+                base += (
+                    f"\n\nIMPORTANT instructions Omar told you to always remember and follow: {instructions}"
+                )
+            return base
+
+        past = self.get_user_past_context()
+        base = (
+            f"You are talking to {name}. "
+            f"Remember who you are speaking with — it is {name}. "
+            f"Be polite, helpful, and formal. Use their name naturally."
+        )
+        if past:
+            base += f"\n\nWhat you remember from past sessions with {name}:\n{past}"
+        return base
 
     def add_correction(self, wrong_answer, correct_answer, question):
         correct_answer = correct_answer.strip('. ,\n')
@@ -72,16 +790,13 @@ class TildMemory:
 
     def is_correction(self, text):
         correction_words = [
-            # English
             'no that', 'no thats', 'wrong', 'incorrect',
             'not right', 'that is wrong', 'that was wrong',
             'you are wrong', 'not correct', 'thats not',
             "that's not", 'no you', 'thats wrong',
-            # Swedish
             'nei det', 'nej det', 'fel', 'felaktigt',
             'inte rätt', 'du har fel', 'det stämmer inte',
             'nej', 'fel svar', 'inte korrekt',
-            # Arabic
             'لا', 'خطأ', 'غلط', 'مش صح',
             'ده غلط', 'هذا خطأ', 'لأ',
             'مش كده', 'انت غلطان', 'غير صحيح'
@@ -111,38 +826,835 @@ class TildMemory:
 
         return result.strip()
 
-    def set_user(self, name, language='en', notes=''):
-        self.user = {
-            'name': name,
-            'language': language,
-            'notes': notes,
-            'verified': self.user.get('verified', False)
-        }
+    def is_trust_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in TRUST_TRIGGERS)
+
+    def is_memory_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in MEMORY_TRIGGERS)
+
+    def is_past_conversation_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in PAST_CONVERSATION_TRIGGERS)
+
+    def answer_past_conversation_question(self, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+
+        count = self.get_visit_count()
+        full_name = self.get_user_full_name() or self.get_user_name()
+
+        if count <= 1:
+            if language == 'sv':
+                return f"Det här är vår första konversation, {full_name}! Vi har inte pratat förut."
+            if language == 'ar':
+                return f"هذه أول محادثة لنا، {full_name}! لم نتحدث من قبل."
+            return f"This is our first conversation, {full_name}! We have not talked before."
+
+        previous = count - 1
+        if language == 'sv':
+            return (
+                f"Ja {full_name}! Vi har pratat {count} gånger totalt — "
+                f"du har varit här {previous} gång{'er' if previous != 1 else ''} förut."
+            )
+        if language == 'ar':
+            return (
+                f"نعم {full_name}! تحدثنا {count} مرات في المجموع — "
+                f"عدت {previous} مرة{'ات' if previous != 1 else ''} من قبل."
+            )
+        return (
+            f"Yes {full_name}! We have talked {count} times in total — "
+            f"you have been here {previous} time{'s' if previous != 1 else ''} before this visit."
+        )
+
+    def answer_memory_question(self, language='en'):
+        full_name = self.get_user_full_name() or self.get_user_name() or 'you'
+        if self.is_owner():
+            if language == 'sv':
+                return (
+                    'Jag sparar dig permanent som Omar Darwish, min skapare. '
+                    'Jag minns dina korrigeringar, fakta om dig och våra samtal.'
+                )
+            return (
+                'I save you permanently as Omar Darwish, my creator. '
+                'I remember your corrections, facts about you, and our conversations.'
+            )
+        if language == 'sv':
+            return (
+                f'Jag sparar ditt fullständiga namn ({full_name}), vad vi pratar om och tidigare samtal '
+                f'i min interna minnesfil. Nästa gång du kommer tillbaka känner jag igen dig via ditt namn.'
+            )
+        if language == 'ar':
+            return (
+                f'أحفظ اسمك الكامل ({full_name}) وما نتحدث عنه ومحادثاتنا السابقة في ملف الذاكرة الداخلي. '
+                f'عند عودتك سأتعرف عليك باسمك.'
+            )
+        return (
+            f'I save your full name ({full_name}), what we talk about, and past conversations '
+            f'in my internal memory file. When you come back, I recognize you by your full name '
+            f'and remember topics from before — not just this chat window.'
+        )
+
+    def answer_trust_question(self, language='en'):
+        if self.is_owner():
+            if language == 'sv':
+                return 'Du verifierade dig med lösenordet bro. Jag minns permanent att du är Omar, min skapare!'
+            if language == 'ar':
+                return 'لقد تحققت بكلمة المرور. أتذكر دائماً أنك Omar، من أنشأني!'
+            return 'Because you verified with your password bro. I permanently remember you as Omar, my creator and owner!'
+        user_id = self.session.get('user_id')
+        topics = self.get_user_topics(user_id) if user_id else []
+        if topics:
+            if language == 'sv':
+                return f'Jag känner igen dig som {self.get_user_full_name()} och minns att vi pratat om {", ".join(topics[:3])}.'
+            return f'I recognize you as {self.get_user_full_name()} and remember we talked about {", ".join(topics[:3])}.'
+        if language == 'sv':
+            return 'Jag känner igen dig från den här sessionen.'
+        return 'I recognize you from this session.'
+
+    def is_identity_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in IDENTITY_TRIGGERS)
+
+    def is_name_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in NAME_TRIGGERS)
+
+    def answer_identity(self, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+
+        if self.is_owner():
+            if language == 'sv':
+                return f'Självklart! Du är {OWNER_NAME}, min skapare och bästa kompis!'
+            if language == 'ar':
+                return f'بالطبع! أنت {OWNER_NAME}، من أنشأني وأفضل صديق لي!'
+            return f'Of course! You are {OWNER_NAME}, my creator and best bro!'
+
+        name = self.get_user_full_name() or self.get_user_name()
+        if language == 'sv':
+            return f'Självklart! Du är {name}!'
+        if language == 'ar':
+            return f'بالطبع! أنت {name}!'
+        return f'Of course! You are {name}!'
+
+    def answer_name_question(self, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+
+        if self.is_owner():
+            if language == 'sv':
+                return f'Du heter {OWNER_NAME}! Du är min skapare och du byggde mig från grunden.'
+            if language == 'ar':
+                return f'اسمك {OWNER_NAME}! أنت من أنشأني وبنيتني من الصفر.'
+            return f'Your name is {OWNER_NAME}! You are my creator and you built me from scratch.'
+
+        name = self.get_user_full_name() or self.get_user_name()
+        if language == 'sv':
+            return f'Du heter {name}!'
+        if language == 'ar':
+            return f'اسمك {name}!'
+        return f'Your name is {name}!'
+
+    def find_correction(self, user_input):
+        if self.is_identity_question(user_input) or self.is_name_question(user_input):
+            return None
+
+        u_words = set(re.findall(r'\w+', user_input.lower())) - CORRECTION_STOPWORDS
+        for correction in self.corrections:
+            answer = correction.get('correct', '')
+            if self.is_owner() and 'do not know who you are' in answer.lower():
+                continue
+
+            q_lower = correction['question'].lower()
+            if any(t in q_lower for t in IDENTITY_TRIGGERS + NAME_TRIGGERS):
+                if not (self.is_identity_question(user_input) or self.is_name_question(user_input)):
+                    continue
+
+            q_words = set(re.findall(r'\w+', q_lower)) - CORRECTION_STOPWORDS
+            if not q_words:
+                continue
+
+            common = q_words.intersection(u_words)
+            if len(common) / len(q_words) >= 0.75 and len(common) >= 2:
+                return answer
+        return None
+
+    def add_omar_fact(self, fact):
+        fact = fact.strip().strip('. ,;')
+        if not fact or fact in self.learned_omar_facts:
+            return False
+        self.learned_omar_facts.append(fact)
+        self.knowledge.set_learned_facts(self.learned_omar_facts)
         self.save_memory()
-        print(f"Tild saved user: {name}")
+        print(f"Tild remembered from Omar: {fact}")
+        return True
+
+    def is_omar_remember_instruction(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in OMAR_REMEMBER_TRIGGERS)
+
+    def is_omar_forget_instruction(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        if any(trigger in text_lower for trigger in OMAR_FORGET_TRIGGERS):
+            return True
+        if self.is_correction(text) and any(
+            w in text_lower for w in ('forget', 'remove', 'delete', 'glöm', 'ta bort')
+        ):
+            return True
+        return False
+
+    def is_omar_recall_instructions(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in OMAR_RECALL_INSTRUCTIONS_TRIGGERS)
+
+    def extract_remember_instruction(self, text):
+        text_lower = text.lower()
+        for trigger in sorted(OMAR_REMEMBER_TRIGGERS, key=len, reverse=True):
+            if trigger in text_lower:
+                idx = text_lower.find(trigger)
+                before = text[:idx].strip().strip('.,;:')
+                before = re.sub(r'\bso\s*$', '', before, flags=re.I).strip(' .,:;')
+                if before and len(before) > 4:
+                    return before[0].upper() + before[1:]
+                after = text[idx + len(trigger):].strip().strip('.,;:')
+                if after and len(after) > 3:
+                    return after[0].upper() + after[1:]
+        cleaned = text
+        for trigger in OMAR_REMEMBER_TRIGGERS:
+            cleaned = re.sub(re.escape(trigger), '', cleaned, flags=re.I)
+        cleaned = cleaned.strip(' .,:;')
+        return cleaned if len(cleaned) > 4 else None
+
+    def extract_forget_hint(self, text):
+        text_lower = text.lower()
+        for prefix in ('that is wrong', 'this is wrong', 'that was wrong', 'this was wrong'):
+            text_lower = text_lower.replace(prefix, '')
+        text = text_lower
+        for trigger in sorted(OMAR_FORGET_TRIGGERS, key=len, reverse=True):
+            if trigger in text:
+                idx = text.find(trigger)
+                after = text[idx + len(trigger):].strip(' .,:;')
+                before = text[:idx].strip(' .,:;')
+                if after and len(after) > 2 and after not in {'it', 'that', 'this'}:
+                    return after
+                if before and len(before) > 3:
+                    return before
+        return None
+
+    def remove_omar_facts_matching(self, hint=None):
+        if not self.learned_omar_facts:
+            return []
+
+        if not hint or hint.lower() in {'it', 'that', 'this'}:
+            removed = [self.learned_omar_facts.pop()]
+            self.knowledge.set_learned_facts(self.learned_omar_facts)
+            self.save_memory()
+            return removed
+
+        hint_words = set(re.findall(r'\w+', hint.lower())) - TOPIC_STOPWORDS
+        removed, kept = [], []
+        for fact in self.learned_omar_facts:
+            fact_lower = fact.lower()
+            fact_words = set(re.findall(r'\w+', fact_lower)) - TOPIC_STOPWORDS
+            overlap = hint_words.intersection(fact_words)
+            if hint.lower() in fact_lower or (
+                hint_words and len(overlap) / len(hint_words) >= 0.5
+            ):
+                removed.append(fact)
+            else:
+                kept.append(fact)
+
+        if not removed and self.learned_omar_facts:
+            removed = [self.learned_omar_facts.pop()]
+            kept = self.learned_omar_facts
+
+        self.learned_omar_facts = kept
+        self.knowledge.set_learned_facts(self.learned_omar_facts)
+        self.save_memory()
+        return removed
+
+    def handle_remember_instruction(self, text, language='en'):
+        fact = self.extract_remember_instruction(text)
+        if not fact:
+            if language == 'sv':
+                return 'Vad ska jag komma ihåg bro? Säg det tydligt så sparar jag det.'
+            return 'What should I remember bro? Say it clearly and I will save it.'
+
+        self.add_omar_fact(fact)
+        if language == 'sv':
+            return f'Jag kommer ihåg det bro! Sparat: {fact}'
+        if language == 'ar':
+            return f'حسناً! سأتذكر ذلك: {fact}'
+        return f'Got it bro! I will remember that: {fact}'
+
+    def handle_forget_instruction(self, text, language='en'):
+        hint = self.extract_forget_hint(text)
+        removed = self.remove_omar_facts_matching(hint)
+        if not removed:
+            if language == 'sv':
+                return 'Det fanns inget att glömma bro — inget sparat matchade det.'
+            return 'Nothing to forget bro — no saved instruction matched that.'
+
+        if language == 'sv':
+            return f'Okej bro, jag glömde det: {"; ".join(removed)}'
+        if language == 'ar':
+            return f'حسناً، نسيت: {"; ".join(removed)}'
+        return f'Okay bro, I forgot that: {"; ".join(removed)}'
+
+    def answer_omar_recall_instructions(self, language='en'):
+        if not self.learned_omar_facts:
+            if language == 'sv':
+                return 'Du har inte bett mig komma ihåg något speciellt ännu bro.'
+            return 'You have not told me to remember anything specific yet bro.'
+
+        items = '; '.join(self.learned_omar_facts)
+        if language == 'sv':
+            return f'Du har bett mig komma ihåg detta bro: {items}'
+        return f'You told me to remember this bro: {items}'
+
+    def is_omar_teaching_message(self, text):
+        return (
+            self.is_omar_remember_instruction(text)
+            or self.is_omar_forget_instruction(text)
+            or self.is_omar_recall_instructions(text)
+        )
+
+    def is_casual_conversation_reply(self, text):
+        """Short replies to Tild's question/offer — not factual questions."""
+        if not self.is_session_identified():
+            return False
+
+        text_lower = text.lower().strip().strip('.!,')
+        casual_phrases = [
+            "no i'm good", 'no im good', "i'm good", 'im good',
+            "no i'm fine", "i'm fine", 'im fine', 'no thanks', 'no thank you',
+            'nah im good', "nah i'm good", 'all good', "i'm alright", 'im alright',
+            "i'm okay", 'im okay', 'not really', 'maybe later', 'not now',
+            'nah', 'nope im good', "nope i'm good", 'sounds good', 'sure thing',
+            'yeah sure', 'yes please', 'ok sure', 'okay sure',
+            'nej tack', 'jag är bra', 'det är bra', 'ingen fara', 'nej det är bra',
+        ]
+        if not any(
+            text_lower == p or text_lower.startswith(p + ' ') or text_lower.startswith(p + '.')
+            for p in casual_phrases
+        ):
+            if text_lower not in {'good', 'fine', 'okay', 'ok', 'sure', 'yeah', 'yes', 'no', 'nah', 'nope'}:
+                return False
+
+        recent_tild = [m for m in self.conversation_history if m['role'] == 'tild']
+        if not recent_tild:
+            return False
+        last_tild = recent_tild[-1]['text'].lower()
+        return (
+            '?' in last_tild
+            or any(w in last_tild for w in (
+                'want', 'would you', 'do you', 'can i', 'shall i', 'need',
+                'like some', 'how about', 'interested', 'would you like',
+                'tea', 'help', 'suggest', 'recommend', 'anything else',
+            ))
+        )
+
+    def answer_casual_reply(self, language='en'):
+        if self.is_owner():
+            if language == 'sv':
+                return 'Okej bro, helt lugnt! Vad vill du göra?'
+            if language == 'ar':
+                return 'تمام! ماذا تريد أن نفعل؟'
+            return "Alright bro, all good! What's on your mind?"
+
+        name = self.get_user_name() or 'there'
+        if language == 'sv':
+            return f'Okej {name}! Vad kan jag hjälpa dig med?'
+        return f'Okay {name}! How can I help you?'
+
+    def is_asking_about_self(self, text):
+        if self.is_owner():
+            return False
+        text_lower = text.lower()
+        if 'omar' in text_lower:
+            return False
+        if any(trigger in text_lower for trigger in SELF_KNOWLEDGE_TRIGGERS):
+            return True
+        if 'about me' in text_lower or 'about myself' in text_lower:
+            return True
+        return False
+
+    def is_asking_about_other_person(self, text):
+        if self.is_owner():
+            return False
+        text_lower = text.lower()
+        if self.is_identity_question(text) or self.is_name_question(text):
+            return False
+        if any(trigger in text_lower for trigger in OTHER_PERSON_TRIGGERS):
+            return True
+        if re.search(r'(?:another|other)\s+\w+', text_lower):
+            return True
+        if self._extract_person_name_from_query(text):
+            if any(w in text_lower for w in ('know', 'känner', 'vet du', 'heard of', 'met')):
+                return True
+        return False
+
+    def _extract_person_name_from_query(self, text):
+        patterns = [
+            r'([A-ZÅÄÖ][a-zåäö]+(?:\s+[A-ZÅÄÖ][a-zåäö]+)+)',
+            r'(?:another|other)\s+([A-Za-zåäö]+)',
+            r'(?:know|känner)\s+(?:a|an|another|other)?\s*([A-ZÅÄÖ][a-zåäö]+(?:\s+[A-ZÅÄÖ][a-zåäö]+)?)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text.strip())
+            if match:
+                name = match.group(1).strip()
+                if name.lower() not in {'do', 'you', 'her', 'him', 'them', 'the', 'another', 'other'}:
+                    return self._title_full_name(name)
+        return None
+
+    def _find_users_excluding(self, exclude_id=None):
+        results = []
+        for user_id, user in self.known_users.items():
+            if user.get('is_owner'):
+                continue
+            if exclude_id and user_id == exclude_id:
+                continue
+            results.append((user_id, user))
+        return results
+
+    def _find_users_by_first_name(self, first_name, exclude_id=None):
+        first_lower = first_name.lower()
+        results = []
+        for user_id, user in self.known_users.items():
+            if user.get('is_owner'):
+                continue
+            if exclude_id and user_id == exclude_id:
+                continue
+            if user.get('first_name', '').lower() == first_lower:
+                results.append((user_id, user))
+        return results
+
+    def _describe_user_briefly(self, user, language='en'):
+        full_name = user.get('full_name', 'Unknown')
+        visits = user.get('visit_count', 0)
+        topics = user.get('topics', [])[:3]
+        parts = [full_name]
+        if visits:
+            parts.append(f"{visits} visit(s)")
+        if topics:
+            parts.append(f"talked about: {', '.join(topics)}")
+        return '; '.join(parts)
+
+    def get_all_guest_users(self):
+        guests = []
+        for user_id, user in self.known_users.items():
+            if user.get('is_owner') or user_id == OWNER_NAME:
+                continue
+            guests.append((user_id, user))
+        guests.sort(key=lambda item: item[1].get('last_seen') or '', reverse=True)
+        return guests
+
+    def is_owner_users_full_list_request(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in OWNER_USERS_FULL_LIST_TRIGGERS)
+
+    def _format_user_summary(self, user):
+        full_name = user.get('full_name', 'Unknown')
+        visits = user.get('visit_count', 0)
+        last_seen = (user.get('last_seen') or '')[:10]
+        line = f"{full_name} ({visits} visit(s)"
+        if last_seen:
+            line += f", last {last_seen}"
+        return line + ")"
+
+    def _recent_conversation_text(self, max_messages=8):
+        return ' '.join(m['text'] for m in self.conversation_history[-max_messages:]).lower()
+
+    def is_owner_users_conversation_context(self):
+        recent = self._recent_conversation_text(12)
+        hints = [
+            'talk to', 'talked to', 'who did you', 'other people', 'other person',
+            'someone', 'friend', 'users', 'guest', 'new friends', 'make new friends',
+            'sara', 'talk about', 'did you talk', 'who is this friend',
+        ]
+        return any(h in recent for h in hints)
+
+    def is_owner_users_question(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        if any(trigger in text_lower for trigger in OWNER_USERS_TRIGGERS):
+            return True
+        if any(p in text_lower for p in (
+            'who is this friend', 'who was that', 'about what did you',
+            'what did you talk', 'who is that person', 'who were they',
+        )):
+            return True
+        if any(p in text_lower for p in (
+            "don't remember", 'dont remember', 'are you sure', 'you do know',
+            'you must know', 'check your memory', 'check memory',
+        )):
+            recent = self._recent_conversation_text()
+            if any(t in recent for t in OWNER_USERS_TRIGGERS) or self.is_owner_users_conversation_context():
+                return True
+        if self.is_owner_users_conversation_context():
+            if any(w in text_lower for w in ('friend', 'who is', 'who was', 'talk about', 'talked about')):
+                return True
+        return False
+
+    def _format_user_for_owner(self, user_id, user):
+        full_name = user.get('full_name', 'Unknown')
+        visits = user.get('visit_count', 0)
+        last_seen = (user.get('last_seen') or '')[:10]
+        topics = user.get('topics', [])
+        session_count = len(user.get('sessions', []))
+        line = f"{full_name} — {visits} visit(s)"
+        if last_seen:
+            line += f", last seen {last_seen}"
+        if topics:
+            line += f", topics: {', '.join(topics[:6])}"
+        if session_count:
+            line += f", {session_count} saved chat(s)"
+        return line
+
+    def answer_owner_users_question(self, text, language='en'):
+        text_lower = text.lower()
+
+        # "who is this friend?" — means a guest user, NOT Wikipedia
+        if any(p in text_lower for p in (
+            'who is this friend', 'who was this friend', 'who is that friend',
+            'who was the friend', 'who is that person', 'who were they',
+        )):
+            guests = self.get_all_guest_users()
+            if not guests:
+                if language == 'sv':
+                    return 'Ingen "vän" bro — jag har inte pratat med någon gäst ännu, bara dig.'
+                return 'No "friend" bro — I have not chatted with any guests yet, just you.'
+            uid, user = guests[0]
+            detail = self._format_user_for_owner(uid, user)
+            if language == 'sv':
+                return (
+                    f'Inte en kändis bro — jag menar någon från mitt minne. '
+                    f'Senast pratade jag med {user["full_name"]}. {detail}'
+                )
+            return (
+                f'Not a celebrity bro — I mean someone from my user memory. '
+                f'Most recently I talked to {user["full_name"]}. {detail}'
+            )
+
+        # "about what did you talk?"
+        if any(p in text_lower for p in (
+            'about what did you', 'what did you talk', 'what did you discuss',
+            'talked about what', 'talk about what',
+        )):
+            guests = self.get_all_guest_users()
+            if not guests:
+                if language == 'sv':
+                    return 'Inga sparade samtal med gäster ännu bro.'
+                return 'No saved guest conversations yet bro.'
+            uid, user = guests[0]
+            topics = user.get('topics', [])
+            if topics:
+                if language == 'sv':
+                    return f'Med {user["full_name"]} pratade vi om: {", ".join(topics[:8])}.'
+                return f'With {user["full_name"]}, we talked about: {", ".join(topics[:8])}.'
+            sessions = user.get('sessions', [])
+            if sessions:
+                human_msgs = [
+                    m['text'] for m in sessions[-1].get('messages', [])
+                    if m.get('role') == 'human'
+                ][:4]
+                if human_msgs:
+                    if language == 'sv':
+                        return f'Med {user["full_name"]}, senaste ämnen: {"; ".join(human_msgs)}.'
+                    return f'With {user["full_name"]}, recent topics from saved chat: {"; ".join(human_msgs)}.'
+            if language == 'sv':
+                return f'Jag har {user["full_name"]} i minnet men inga detaljer sparade ännu bro.'
+            return f'I have {user["full_name"]} in memory but no detailed topics saved yet bro.'
+
+        # "did you talk to someone today?"
+        if 'today' in text_lower and any(w in text_lower for w in ('talk', 'someone', 'friend', 'anyone')):
+            from datetime import date
+            today = date.today().isoformat()
+            guests_today = [
+                (uid, u) for uid, u in self.get_all_guest_users()
+                if (u.get('last_seen') or '')[:10] == today
+            ]
+            if guests_today:
+                names = ', '.join(u['full_name'] for _, u in guests_today)
+                if language == 'sv':
+                    return f'Ja bro! Idag pratade jag med: {names}.'
+                return f'Yeah bro! Today I talked to: {names}.'
+            if language == 'sv':
+                return 'Inga gästchattar idag bro — bara du just nu i den här sessionen.'
+            return 'No guest chats today bro — just you in this session right now.'
+
+        name = self._extract_person_name_from_query(text)
+        if name:
+            matches = self.find_users_by_full_name(name)
+            if not matches:
+                partial = self._find_users_by_first_name(name.split()[0])
+                matches = [uid for uid, _ in partial]
+            if matches:
+                user = self.known_users[matches[0]]
+                detail = self._format_user_for_owner(matches[0], user)
+                if language == 'sv':
+                    return f"Ja bro, här är vad jag har om {user['full_name']}: {detail}."
+                return f"Yeah bro, here is what I have on {user['full_name']}: {detail}."
+
+        guests = self.get_all_guest_users()
+        if not guests:
+            if language == 'sv':
+                return 'Nä bro, inga andra användare ännu — bara du!'
+            return 'Nah bro, no other users yet — just you so far!'
+
+        total = len(guests)
+        want_full = self.is_owner_users_full_list_request(text)
+
+        if want_full:
+            shown = guests[:OWNER_USERS_FULL_LIST_MAX]
+            lines = [
+                self._format_user_for_owner(uid, user)
+                for uid, user in shown
+            ]
+            if language == 'sv':
+                header = f'Här är {len(shown)} av {total} användare (kompakt):'
+                footer = (
+                    f'... och {total - len(shown)} till. Fråga om någon vid namn för full info.'
+                    if total > len(shown) else
+                    'Fråga om någon vid namn för full info.'
+                )
+            else:
+                header = f'Here are {len(shown)} of {total} users (compact):'
+                footer = (
+                    f'... and {total - len(shown)} more. Ask about someone by name for full details.'
+                    if total > len(shown) else
+                    'Ask about someone by name for full details.'
+                )
+            return header + '\n' + '\n'.join(f'- {line}' for line in lines) + '\n' + footer
+
+        # Default: short summary — recent users only
+        recent = guests[:OWNER_USERS_SUMMARY_LIMIT]
+        lines = [self._format_user_summary(user) for _, user in recent]
+        remaining = total - len(recent)
+
+        if language == 'sv':
+            header = f'Ja bro! Jag känner {total} andra person(er). Senast aktiva:'
+            footer = (
+                f'... och {remaining} till. Säg "lista alla användare" för full lista, '
+                f'eller fråga om någon vid namn (t.ex. "berätta om Sara Hassan").'
+                if remaining > 0 else
+                'Fråga om någon vid namn för full info.'
+            )
+        else:
+            header = f'Yeah bro! I know {total} other person(s). Most recently active:'
+            footer = (
+                f'... and {remaining} more. Say "list all users" for the full list, '
+                f'or ask about someone by name (e.g. "tell me about Sara Hassan").'
+                if remaining > 0 else
+                'Ask about someone by name for full details.'
+            )
+
+        return header + '\n' + '\n'.join(f'- {line}' for line in lines) + '\n' + footer
+
+    def answer_about_self(self, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+
+        full_name = self.get_user_full_name() or self.get_user_name()
+        visits = self.get_visit_count()
+        topics = self.get_user_topics(self.session.get('user_id'))
+
+        if language == 'sv':
+            lines = [f"Det här vet jag om dig, {full_name}:"]
+            lines.append(f"Du har pratat med mig {visits} gång(er).")
+            if topics:
+                lines.append(f"Ämnen vi pratat om: {', '.join(topics)}.")
+            else:
+                lines.append("Vi håller just på att lära känna varandra.")
+            return ' '.join(lines)
+
+        if language == 'ar':
+            lines = [f"إليك ما أعرفه عنك، {full_name}:"]
+            lines.append(f"تحدثنا {visits} مرة.")
+            if topics:
+                lines.append(f"مواضيع تحدثنا عنها: {', '.join(topics)}.")
+            return ' '.join(lines)
+
+        lines = [f"Here is what I know about you, {full_name}:"]
+        lines.append(f"You have talked with me {visits} time(s).")
+        if topics:
+            lines.append(f"Topics we have discussed: {', '.join(topics)}.")
+        else:
+            lines.append("We are still getting to know each other — I will remember more as we talk.")
+        return ' '.join(lines)
+
+    def answer_about_other_person(self, text, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+
+        current_id = self.session.get('user_id')
+        current_name = self.get_user_full_name() or self.get_user_name()
+        text_lower = text.lower()
+
+        name = self._extract_person_name_from_query(text)
+        if not name:
+            match = re.search(r'(?:another|other)\s+(\w+)', text_lower)
+            if match:
+                name = match.group(1).capitalize()
+
+        if name:
+            if self.normalize_full_name(name) == self.normalize_full_name(current_name or ''):
+                if language == 'sv':
+                    return f"Ja — det är du, {current_name}! Det är den person jag pratar med just nu."
+                return f"Yes — that is you, {current_name}! You are the person I am talking to right now."
+
+            exact = self.find_users_by_full_name(name)
+            if exact:
+                user = self.known_users[exact[0]]
+                if exact[0] == current_id:
+                    if language == 'sv':
+                        return f"Ja, det är du — {current_name}!"
+                    return f"Yes, that is you — {current_name}!"
+                brief = self._describe_user_briefly(user, language)
+                if language == 'sv':
+                    return f"Ja, jag känner {user['full_name']}. {brief}."
+                return f"Yes, I know {user['full_name']}. {brief}."
+
+            partial = self._find_users_by_first_name(name.split()[0], exclude_id=None)
+            partial = [(uid, u) for uid, u in partial if uid != current_id]
+            if partial:
+                names = ', '.join(u['full_name'] for _, u in partial)
+                if language == 'sv':
+                    return (
+                        f"Ja, jag känner {names} — en annan person än dig ({current_name}). "
+                        f"Det är inte samma person som du."
+                    )
+                return (
+                    f"Yes, I know {names} — a different person from you ({current_name}). "
+                    f"They are not the same person as you."
+                )
+
+            if language == 'sv':
+                return (
+                    f"Nej, jag har ingen {name} i mitt minne. "
+                    f"Jag känner dig som {current_name}."
+                )
+            return (
+                f"No, I do not have {name} in my memory. "
+                f"I know you as {current_name}."
+            )
+
+        if 'another' in text_lower or 'other' in text_lower:
+            others = self._find_users_excluding(exclude_id=current_id)
+            if not others:
+                if language == 'sv':
+                    return f"Nej, du ({current_name}) är den enda gästen jag känner förutom Omar."
+                return f"No, you ({current_name}) are the only guest I know besides Omar."
+            names = ', '.join(u['full_name'] for _, u in others)
+            if language == 'sv':
+                return f"Ja, jag känner också {names}. De är andra personer än dig ({current_name})."
+            return f"Yes, I also know {names}. They are different people from you ({current_name})."
+
+        if language == 'sv':
+            return "Vem menar du? Säg hela namnet så kollar jag mitt minne."
+        return "Who do you mean? Tell me their full name and I will check my memory."
+
+    def answer_from_knowledge(self, user_input, language='en'):
+        if self.knowledge.is_tild_self_question(user_input):
+            answer = self.knowledge.answer_tild_self_question(user_input, language)
+            if answer:
+                return answer
+            return self.knowledge.dont_know_response(language, 'that about myself')
+
+        if self.knowledge.is_omar_personal_question(user_input, self.is_owner()):
+            if not self.is_owner():
+                guest = self.get_user_name()
+                return self.knowledge.answer_omar_for_guest(
+                    user_input, language, guest_name=guest
+                )
+            answer = self.knowledge.answer_omar_question(
+                user_input, language, self.learned_omar_facts
+            )
+            if answer:
+                return answer
+            return self.knowledge.dont_know_response(language, 'that about Omar')
+
+        return None
+
+    def mark_as_owner(self, language='en'):
+        self.identify_session(OWNER_NAME, language, is_owner=True)
+        self.known_users[OWNER_NAME]['permanently_verified'] = True
+        self.save_memory()
+        print(f"Tild saved {OWNER_NAME} as owner permanently!")
+
+    def set_user(self, name, language='en', notes=''):
+        """Legacy helper — prefer register_full_name for guests."""
+        if ' ' in name.strip():
+            status, user_id = self.register_full_name(name, language)
+            if status == 'new':
+                return
+            return
+        self.begin_full_name_collection(partial_first_name=self._first_name(name), language=language)
 
     def get_user_name(self):
-        return self.user.get('name', None)
+        if self.is_session_identified():
+            return self.session.get('name')
+        return None
+
+    def get_user_full_name(self):
+        user_id = self.session.get('user_id')
+        if user_id and user_id in self.known_users:
+            return self.known_users[user_id].get('full_name')
+        if self.is_owner():
+            return OWNER_FULL_NAME
+        return self.get_user_name()
 
     def is_known_user(self):
-        return bool(self.user.get('name'))
+        return self.is_session_identified()
+
+    def is_owner(self):
+        return self.is_session_identified() and self.session.get('is_owner', False)
 
     def is_omar(self):
-        return self.user.get('name') == 'Omar' and self.user.get('verified', False)
+        return self.is_owner()
 
     def is_verified(self):
-        return self.user.get('verified', False)
+        return self.is_session_identified()
 
     def get_tone(self):
-        if self.is_omar():
+        if self.is_owner():
             return 'bro'
-        elif self.is_known_user():
-            return 'friendly'
-        else:
-            return 'formal'
+        return 'formal'
 
-    def clear_session_user(self):
-        # Clear only session data not persistent data
-        self.user.pop('pending_name', None)
-        self.user.pop('pending_language', None)
-        self.save_memory()
+    def greeting_for_session(self, language='en'):
+        if self.is_awaiting_owner_confirm():
+            if language == 'sv':
+                return f'Hej! Är det du {OWNER_NAME}?'
+            if language == 'ar':
+                return f'مرحباً! هل أنت {OWNER_NAME}؟'
+            return f'Hey! Is that you {OWNER_NAME}?'
+        if language == 'sv':
+            return 'Hej! Jag är Tild. Vem pratar jag med?'
+        if language == 'ar':
+            return 'مرحباً! أنا Tild. مع من أتحدث؟'
+        return 'Hey! I am Tild. Who am I talking to?'
+
+    def formal_greeting(self, name, language='en'):
+        display = name if ' ' in name else name
+        if language == 'sv':
+            return f'Hej {display}! Trevligt att träffa dig. Hur kan jag hjälpa dig?'
+        if language == 'ar':
+            return f'مرحباً {display}! كيف يمكنني مساعدتك؟'
+        return f'Hello {display}! Nice to meet you. How may I help you?'
+
+    def owner_greeting(self, language='en'):
+        if language == 'sv':
+            return 'Rätt lösenord! Tjena Omar! Vad händer kompis?'
+        if language == 'ar':
+            return 'كلمة المرور صحيحة! أهلاً Omar! كيف حالك يا صديقي؟'
+        return 'Correct password! Hey Omar! What is up bro?'

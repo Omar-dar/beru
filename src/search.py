@@ -129,7 +129,17 @@ class TildSearch:
         intro = random.choice(intros)
         return f"{intro} {result}"
 
-    def should_search(self, text):
+    def should_search(self, text, memory=None):
+        if memory and memory.knowledge.should_block_search(text, memory.is_owner()):
+            return False
+
+        if memory and memory.is_owner():
+            if memory.is_owner_users_question(text):
+                return False
+            text_lower = text.lower()
+            if 'friend' in text_lower and memory.is_owner_users_conversation_context():
+                return False
+
         search_triggers = [
             # English
             'what is', 'who is', 'where is', 'when is',

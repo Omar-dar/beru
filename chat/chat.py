@@ -9,7 +9,11 @@ from src.rag import TildRAG
 from src.memory import TildMemory
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
-from src.ollama_brain import OllamaBrain
+from src.deep_brain import DeepBrain
+from src.language import detect_language
+from src.router import (
+    route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS,
+)
 
 load_dotenv()
 
@@ -45,25 +49,6 @@ def load_tild():
     return model, tokenizer
 
 
-def detect_language(text):
-    swedish_chars = set("åäöÅÄÖ")
-    arabic_chars = set("ابتثجحخدذرزسشصضطظعغفقكلمنهوي")
-    swedish_words = {
-        "vad", "heter", "jag", "hur", "vem", "är", "det",
-        "och", "att", "kan", "du", "inte", "med", "för",
-        "på", "om", "men", "har", "en", "ett", "var",
-        "när", "vill", "ska", "vi", "de", "sig", "som"
-    }
-    if any(c in swedish_chars for c in text):
-        return "sv"
-    if any(c in arabic_chars for c in text):
-        return "ar"
-    words = set(text.lower().split())
-    if len(words.intersection(swedish_words)) >= 1:
-        return "sv"
-    return "en"
-
-
 def is_good_response(response):
     if len(response) < 3:
         return False
@@ -77,6 +62,14 @@ def is_good_response(response):
 
 
 def detect_name(user_input_lower):
+    from src.memory import GREETING_WORDS, OWNER_NAME, TildMemory
+
+    if TildMemory.looks_like_yes_or_no(user_input_lower):
+        return None
+
+    if 'omar darwish' in user_input_lower:
+        return OWNER_NAME
+
     skip_words = {
         "a", "an", "the", "not", "no", "yes", "ok", "okay",
         "here", "sure", "good", "bad", "just", "only", "also",
@@ -87,8 +80,8 @@ def detect_name(user_input_lower):
         "working", "talking", "asking", "saying", "looking",
         "coming", "getting", "having", "making", "taking",
         "serious", "kidding", "joking", "back", "home", "new",
-        "old", "big", "small", "right", "wrong", "late", "early"
-    }
+        "old", "big", "small", "right", "wrong", "late", "early",
+    } | GREETING_WORDS
 
     ignore_phrases = [
         "jag är inte",
@@ -157,6 +150,58 @@ def detect_name(user_input_lower):
     return None
 
 
+NAME_INTRO_PREFIXES = [
+    r"^no,?\s+",
+    r"^no it is\s+",
+    r"^no i'm\s+",
+    r"^no im\s+",
+    r"^(?:i am|i'm|im|my name is|call me|this is|it is|it's|its|jag heter|mitt namn är|jag är|det är|kalla mig)\s+",
+]
+
+NAME_FILLER_WORDS = {
+    "a", "an", "the", "not", "no", "yes", "ok", "okay", "it", "its", "it's",
+    "is", "me", "here", "sure", "good", "bad", "just", "only", "also", "very",
+    "really", "this", "that", "i", "im", "am", "my", "name", "call", "speaking",
+}
+
+
+def _strip_name_intro(text_lower):
+    text = text_lower.strip().strip('.!,')
+    for prefix in NAME_INTRO_PREFIXES:
+        text = re.sub(prefix, '', text, count=1)
+    return text.strip()
+
+
+def _title_name_words(words):
+    return ' '.join(w.capitalize() for w in words)
+
+
+def is_valid_full_name(full_name):
+    words = full_name.lower().split()
+    if len(words) < 2:
+        return False
+    return not any(w in NAME_FILLER_WORDS for w in words)
+
+
+def detect_full_name(user_input_lower):
+    """Detect a multi-word full name from user input."""
+    from src.memory import GREETING_WORDS, OWNER_NAME
+
+    if 'omar darwish' in user_input_lower:
+        return OWNER_NAME + ' Darwish'
+
+    skip_words = NAME_FILLER_WORDS | GREETING_WORDS
+    stripped = _strip_name_intro(user_input_lower)
+    words = [w for w in stripped.split() if w not in skip_words and len(w) > 1]
+
+    if len(words) >= 2:
+        full_name = _title_name_words(words)
+        if is_valid_full_name(full_name):
+            return full_name
+
+    return None
+
+
 def is_analysis_request(text):
     analysis_triggers = [
         "analysera", "analyse", "analyze", "hitta", "find",
@@ -168,109 +213,139 @@ def is_analysis_request(text):
     return any(trigger in text_lower for trigger in analysis_triggers)
 
 
-def get_response(model, tokenizer, rag, memory, search, ner, user_input, language="en"):
+def get_response(model, tokenizer, rag, memory, search, ner, user_input, language="en", brain=None):
     language = detect_language(user_input)
     user_input_lower = user_input.lower()
-
-    # Get tone based on who is talking
     tone = memory.get_tone()
 
-    # Password check
-    if memory.user.get("pending_name"):
-        pending_name = memory.user["pending_name"]
-        pending_language = memory.user.get("pending_language", "en")
+    # Password check for protected users (e.g. Omar)
+    pending_name = memory.get_pending_name()
+    if pending_name:
+        pending_language = memory.session.get("pending_language", "en")
 
-        if PROTECTED_USERS.get(pending_name) == user_input.strip():
-            memory.user.pop("pending_name", None)
-            memory.user.pop("pending_language", None)
-            memory.set_user(pending_name, pending_language)
-            memory.user["verified"] = True
-            memory.save_memory()
-
+        stored = PROTECTED_USERS.get(pending_name)
+        if stored and TildMemory.passwords_match(user_input, stored):
+            memory.clear_pending_name()
             if pending_name == "Omar":
-                if pending_language == "sv":
-                    return "Rätt lösenord! Tjena Omar! Vad händer kompis?"
-                return "Correct password! Hey Omar! What is up bro?"
+                memory.mark_as_owner(pending_language)
+                return memory.owner_greeting(pending_language)
 
-            if pending_language == "sv":
-                return f"Rätt lösenord! Hej {pending_name}. Hur kan jag hjälpa dig?"
-            return f"Correct password! Hey {pending_name}. How can I help you?"
+            memory.set_user(pending_name, pending_language)
+            return memory.formal_greeting(pending_name, pending_language)
 
-        memory.user.pop("pending_name", None)
-        memory.user.pop("pending_language", None)
-        memory.save_memory()
-
+        memory.clear_pending_name()
         if language == "sv":
-            return "Fel lösenord! Jag kan inte verifiera din identitet."
-        return "Wrong password! I cannot verify your identity."
+            return "Fel lösenord! Jag kan inte verifiera din identitet. Vem är du?"
+        return "Wrong password! I cannot verify your identity. Who are you?"
 
-    # Name detection
-    detected_name = detect_name(user_input_lower)
+    # Must know who is talking before anything else
+    if not memory.is_session_identified():
+        # Waiting for user to disambiguate duplicate full names
+        if memory.is_awaiting_disambiguation():
+            matched_id = memory.resolve_disambiguation(user_input)
+            if matched_id:
+                memory.confirm_disambiguation(matched_id, language)
+                return memory.welcome_back_greeting(matched_id, language)
+            return memory.ask_disambiguation_retry(language)
 
-    if detected_name:
+        # Waiting for full name after first name only
+        if memory.is_awaiting_full_name():
+            full_name = detect_full_name(user_input_lower)
+            if full_name and len(full_name.split()) >= 2:
+                memory.session['awaiting_full_name'] = False
+                return memory.handle_guest_registration(full_name, language)
+
+            partial = memory.session.get('partial_first_name')
+            single = detect_name(user_input_lower)
+            if single and not partial:
+                memory.begin_full_name_collection(partial_first_name=single, language=language)
+                return memory.ask_full_name(language, partial_first_name=single)
+            return memory.ask_full_name(language, partial_first_name=partial)
+
+        # Waiting for Omar to confirm identity
+        if memory.is_awaiting_owner_confirm():
+            detected_name = detect_name(user_input_lower)
+            full_name = detect_full_name(user_input_lower)
+
+            if memory.is_affirmative(user_input) or detected_name == 'Omar':
+                memory.clear_awaiting_owner_confirm()
+                memory.set_pending_name('Omar', language)
+                return memory.ask_owner_password(language)
+
+            if memory.is_negative(user_input):
+                memory.clear_awaiting_owner_confirm()
+                return memory.ask_to_identify(language)
+
+            if full_name and detected_name != 'Omar':
+                memory.clear_awaiting_owner_confirm()
+                return memory.handle_guest_registration(full_name, language)
+
+            if detected_name and detected_name != 'Omar':
+                memory.clear_awaiting_owner_confirm()
+                memory.begin_full_name_collection(partial_first_name=detected_name, language=language)
+                return memory.ask_full_name(language, partial_first_name=detected_name)
+
+            return memory.ask_owner_confirm_again(language)
+
+        full_name = detect_full_name(user_input_lower)
+        detected_name = detect_name(user_input_lower)
+
         if detected_name in PROTECTED_USERS:
-            if memory.user.get("name") == detected_name and memory.user.get("verified"):
-                if language == "sv":
-                    return f"Tjena {detected_name}! Du är redan inloggad kompis."
-                return f"Hey {detected_name}! You are already logged in."
-
-            memory.user["pending_name"] = detected_name
-            memory.user["pending_language"] = language
-            memory.save_memory()
-
+            memory.set_pending_name(detected_name, language)
             if language == "sv":
                 return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?"
             return f"Hey! I recognize the name {detected_name}. What is the password?"
 
-        memory.set_user(detected_name, language)
+        if full_name and len(full_name.split()) >= 2 and detected_name != 'Omar':
+            return memory.handle_guest_registration(full_name, language)
 
-        if language == "sv":
-            return f"Hej {detected_name}! Kul att lära känna dig. Hur kan jag hjälpa dig?"
-        return f"Hey {detected_name}! Nice to meet you. How can I help you?"
+        if detected_name and detected_name != 'Omar':
+            memory.begin_full_name_collection(partial_first_name=detected_name, language=language)
+            return memory.ask_full_name(language, partial_first_name=detected_name)
 
-    # Who am I triggers
-    who_triggers = [
-        "do you know who i am", "vet du vem jag är",
-        "kommer du ihåg mig", "do you remember me",
-        "who am i", "vem är jag", "minns du mig",
-    ]
+        return memory.ask_to_identify(language)
 
-    if any(trigger in user_input_lower for trigger in who_triggers):
-        name = memory.get_user_name()
-        if name:
-            if name == "Omar":
-                if language == "sv":
-                    return f"Självklart! Du är {name}, min skapare och bästa kompis!"
-                return f"Of course! You are {name}, my creator and best bro!"
-            if language == "sv":
-                return f"Självklart! Du är {name}!"
-            return f"Of course! You are {name}!"
+    # Identity and name questions
+    if memory.is_identity_question(user_input):
+        return memory.answer_identity(language)
 
-        if language == "sv":
-            return "Jag vet inte vem du är ännu! Vad heter du?"
-        return "I do not know who you are yet! What is your name?"
+    if memory.is_name_question(user_input):
+        return memory.answer_name_question(language)
 
-    # Name triggers
-    name_triggers = [
-        "what is my name", "vad heter jag",
-        "do you know my name", "vet du vad jag heter",
-        "kommer du ihåg mitt namn", "do you remember my name"
-    ]
+    if memory.is_trust_question(user_input):
+        return memory.answer_trust_question(language)
 
-    if any(trigger in user_input_lower for trigger in name_triggers):
-        name = memory.get_user_name()
-        if name:
-            if name == "Omar":
-                if language == "sv":
-                    return f"Du heter {name}! Du är min skapare och du byggde mig från grunden. Najs eller hur?"
-                return f"Your name is {name}! You are my creator and you built me from scratch. Pretty cool right?"
-            if language == "sv":
-                return f"Du heter {name}! Kul att ha dig här."
-            return f"Your name is {name}! Great to have you here."
+    if memory.is_memory_question(user_input):
+        return memory.answer_memory_question(language)
 
-        if language == "sv":
-            return "Du har inte berättat vad du heter! Vad heter du?"
-        return "You have not told me your name yet! What is your name?"
+    if memory.is_past_conversation_question(user_input):
+        return memory.answer_past_conversation_question(language)
+
+    if memory.is_owner_users_question(user_input):
+        return memory.answer_owner_users_question(user_input, language)
+
+    if memory.is_owner():
+        if memory.is_omar_forget_instruction(user_input):
+            return memory.handle_forget_instruction(user_input, language)
+        if memory.is_omar_remember_instruction(user_input):
+            return memory.handle_remember_instruction(user_input, language)
+        if memory.is_omar_recall_instructions(user_input):
+            return memory.answer_omar_recall_instructions(language)
+
+    if memory.is_asking_about_self(user_input):
+        return memory.answer_about_self(language)
+
+    if memory.is_asking_about_other_person(user_input):
+        return memory.answer_about_other_person(user_input, language)
+
+    if memory.is_casual_conversation_reply(user_input):
+        return memory.answer_casual_reply(language)
+
+    # Permanent knowledge — Tild identity and Omar facts
+    knowledge_answer = memory.answer_from_knowledge(user_input, language)
+    if knowledge_answer:
+        print("[Knowledge memory used]")
+        return knowledge_answer
 
     # Correction check
     if memory.is_correction(user_input):
@@ -284,6 +359,8 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
             if correct:
                 memory.add_correction(wrong_answer, correct, question)
+                if memory.is_owner():
+                    memory.add_omar_fact(correct)
                 if language == "sv":
                     return "Tack för korrigeringen! Jag kommer att komma ihåg det."
                 if language == "ar":
@@ -296,18 +373,16 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
                 return "أفهم أنني كنت مخطئاً! هل يمكنك إخباري بالإجابة الصحيحة؟"
             return "I understand I was wrong! Can you tell me the correct answer?"
 
-    # Corrections memory
-    for correction in memory.corrections:
-        q_words = set(correction["question"].lower().split())
-        u_words = set(user_input.lower().split())
-        common = q_words.intersection(u_words)
-        if len(common) >= 3:
-            return correction["correct"]
+    correction_answer = memory.find_correction(user_input)
+    if correction_answer:
+        return correction_answer
 
-    # Entity recognition
-    if len(user_input.split()) > 8 and is_analysis_request(user_input):
-        rag_answer, score = rag.find_answer(user_input, threshold=0.70)
-        if rag_answer and score > 0.70:
+    # Router — decide memory vs RAG vs search vs deep brain
+    route = route_request(user_input, memory, is_analysis_fn=is_analysis_request, search=search)
+
+    if route == ROUTE_ANALYSIS:
+        rag_answer, score = rag.find_answer(user_input, threshold=0.92, quiet=True)
+        if rag_answer and score >= 0.92:
             print(f"[RAG match: {score:.2f}]")
             return rag_answer
         entities = ner.extract_entities(user_input)
@@ -315,30 +390,7 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             print("[Entity recognition used]")
             return ner.format_entities(entities, language)
 
-    # Tild/Omar keywords
-    tild_keywords = [
-        "tild", "who are you", "what are you", "about you",
-        "your name", "your purpose", "whats your", "what's your",
-        "built you", "made you", "created you", "your creator",
-        "who made", "who built", "who created", "ur name",
-        "your age", "how old are you", "where do you live",
-        "what do you do", "what can you do", "are you an ai",
-        "are you real", "are you human", "do you have feelings",
-        "vem är du", "vad är du", "vad heter du", "vem skapade",
-        "vem byggde", "var bor du", "hur gammal", "vad kan du",
-        "berätta om dig", "hur fungerar du", "vad gör du"
-    ]
-    omar_keywords = [
-        "omar darwish", "your creator", "who made you",
-        "who built you", "who created you", "omar made",
-        "omar built", "omar created", "vem är omar",
-        "omar skapade", "omar byggde", "berätta om omar",
-        "vad vet du om omar", "är omar smart"
-    ]
-    is_about_tild = any(word in user_input_lower for word in tild_keywords + omar_keywords)
-
-    # Internet search
-    if search.should_search(user_input) and not is_about_tild:
+    if route == ROUTE_SEARCH:
         print("[Searching internet...]")
         result = search.search(user_input)
         if result:
@@ -347,20 +399,23 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
                 result = result[:150] + "..."
             print(f"[Found: {result[:50]}...]")
             return search.format_response(result, user_input)
-
         if language == "sv":
-            return "Jag försökte söka efter det men kunde inte ansluta just nu. Fråga mig något annat!"
+            return "Jag försökte söka efter det men kunde inte ansluta just nu."
         if language == "ar":
-            return "حاولت البحث لكن لم أتمكن من الاتصال الآن. اسألني شيئاً آخر!"
-        return "I tried searching for that but could not connect right now. Try asking me something else!"
+            return "حاولت البحث لكن لم أتمكن من الاتصال الآن."
+        return "I tried searching for that but could not connect right now."
 
-    # RAG
-    rag_answer, score = rag.find_answer(user_input)
-    if rag_answer:
-        print(f"[RAG match: {score:.2f}]")
-        return rag_answer
+    if route == ROUTE_RAG:
+        rag_answer, score = rag.find_answer(user_input, threshold=0.92)
+        if rag_answer and score >= 0.92:
+            print(f"[RAG match: {score:.2f}]")
+            return rag_answer
+        route = ROUTE_BRAIN
 
-    # Fallback
+    if route == ROUTE_BRAIN and brain:
+        print("[Tild thinking...]")
+        return brain.ask(user_input, language, tone=tone, memory=memory)
+
     if language == "ar":
         return random.choice(FALLBACKS_AR)
     if language == "sv":
@@ -374,18 +429,10 @@ def chat():
     memory = TildMemory()
     search = TildSearch()
     ner = TildEntityRecognizer()
-    ollama = OllamaBrain()
+    brain = DeepBrain()
 
-    # Greet based on who the user is
-    tone = memory.get_tone()
-    if memory.is_omar():
-        print("Tild: Tjena Omar! Vad händer kompis?\n")
-    elif memory.is_known_user():
-        name = memory.get_user_name()
-        print(f"Tild: Welcome back {name}! How can I help you?\n")
-    else:
-        print("Tild: Hey! I am Tild. Who am I talking to?\n")
-
+    greeting = memory.greeting_for_session()
+    print(f"Tild: {greeting}\n")
     print("Type your message (or 'quit' to exit)\n")
 
     while True:
@@ -395,10 +442,12 @@ def chat():
             continue
 
         if user_input.lower() == "quit":
-            if memory.is_omar():
+            if memory.is_owner():
                 print("Tild: Vi ses bro!")
-            else:
+            elif memory.is_session_identified():
                 print("Tild: Goodbye! It was great talking with you.")
+            else:
+                print("Tild: Goodbye!")
             break
 
         language = detect_language(user_input)
@@ -407,11 +456,8 @@ def chat():
 
         response = get_response(
             model, tokenizer, rag, memory,
-            search, ner, user_input, language
+            search, ner, user_input, language, brain=brain
         )
-
-        if response in FALLBACKS or response in FALLBACKS_SV or response in FALLBACKS_AR:
-            response = ollama.ask(user_input, language, tone=tone)
 
         memory.add_to_conversation("tild", response)
         print(f"Tild: {response}\n")

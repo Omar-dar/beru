@@ -89,7 +89,8 @@ class TildRAG:
 
         self,
         query,
-        threshold=0.80
+        threshold=0.80,
+        quiet=False
 
     ):
 
@@ -130,20 +131,12 @@ class TildRAG:
         ]
 
 
-        print(
-
-            "\nQUERY:", query,
-
-            "\nMATCH:", best_match,
-
-            "\nSCORE:",
-
-            round(
-                best_score,
-                2
+        if not quiet:
+            print(
+                "\nQUERY:", query,
+                "\nMATCH:", best_match,
+                "\nSCORE:", round(best_score, 2)
             )
-
-        )
 
 
         stopwords = {
@@ -232,28 +225,19 @@ class TildRAG:
         )
 
 
-        print(
+        if not quiet:
+            print(
+                "QUERY WORDS:", query_words,
+                "\nMATCH WORDS:", match_words,
+                "\nOVERLAP:", overlap, "\n"
+            )
 
-            "QUERY WORDS:",
-            query_words,
 
-            "\nMATCH WORDS:",
-            match_words,
-
-            "\nOVERLAP:",
-            overlap,
-
-            "\n"
-
-        )
-
+        min_overlap = 2 if threshold >= 0.90 else 1
 
         if (
-
             best_score >= threshold
-
-            and overlap >= 1
-
+            and overlap >= min_overlap
         ):
 
             return (

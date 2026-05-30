@@ -3,7 +3,7 @@
     {
       "question": "do you know who i am",
       "wrong": "",
-      "correct": "I do not know who you are yet! Could you tell me your name?",
+      "correct": "Of course! You are Omar, my creator and best bro!",
       "time": "2026-05-24T00:00:00.000000"
     },
     {
@@ -21,14 +21,284 @@
     {
       "question": "do you know omar full name",
       "wrong": "",
-      "correct": "I do not know Omar's full name yet. Would you like to tell me?",
+      "correct": "Omar Darwish is my creator's full name.",
       "time": "2026-05-24T00:00:00.000000"
     }
   ],
-  "user": {
-    "name": "Omar",
-    "language": "en",
-    "notes": "",
-    "verified": true
-  }
+  "known_users": {
+    "Omar": {
+      "full_name": "Omar Darwish",
+      "first_name": "Omar",
+      "language": "en",
+      "is_owner": true,
+      "permanently_verified": true,
+      "last_seen": "2026-05-30T04:40:30.840842",
+      "topics": [],
+      "sessions": [],
+      "visit_count": 13
+    },
+    "usr_3a6d64c2": {
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-05-30T03:48:15.797412",
+      "full_name": "Sara",
+      "first_name": "Sara",
+      "topics": [],
+      "sessions": [],
+      "visit_count": 0
+    },
+    "usr_29ab71ad": {
+      "full_name": "Sara",
+      "first_name": "Sara",
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-05-30T04:00:03.020458",
+      "topics": [],
+      "sessions": [],
+      "visit_count": 0
+    },
+    "usr_56684aa7": {
+      "full_name": "Sara Andersson",
+      "first_name": "Sara",
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-05-30T04:03:19.856184",
+      "topics": [],
+      "sessions": [
+        {
+          "date": "2026-05-30T04:04:00.462154",
+          "messages": [
+            {
+              "role": "human",
+              "text": "no sara",
+              "time": "2026-05-30T04:02:51.611765"
+            },
+            {
+              "role": "tild",
+              "text": "Say yes if you are Omar, or tell me your name.",
+              "time": "2026-05-30T04:02:51.614583"
+            },
+            {
+              "role": "human",
+              "text": "I am Sara Andersson",
+              "time": "2026-05-30T04:03:19.853901"
+            },
+            {
+              "role": "tild",
+              "text": "Hello Sara Andersson! Nice to meet you. I will remember you and what we talk about. How may I help you?",
+              "time": "2026-05-30T04:03:19.856581"
+            }
+          ]
+        }
+      ],
+      "visit_count": 1
+    },
+    "usr_4a1a5261": {
+      "full_name": "Sara Hassan",
+      "first_name": "Sara",
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-05-30T04:12:52.772620",
+      "topics": [
+        "make tea",
+        "give some",
+        "more unique flavorful",
+        "know another sara",
+        "sara andersson know her",
+        "know sara hassan",
+        "wanted ask know there another sara",
+        "not sara andersson"
+      ],
+      "sessions": [
+        {
+          "date": "2026-05-30T04:14:30.124768",
+          "messages": [
+            {
+              "role": "human",
+              "text": "no",
+              "time": "2026-05-30T04:12:18.322179"
+            },
+            {
+              "role": "tild",
+              "text": "Before we continue, I need to know who I am talking to. What is your full name?",
+              "time": "2026-05-30T04:12:18.324433"
+            },
+            {
+              "role": "human",
+              "text": "Sara",
+              "time": "2026-05-30T04:12:25.244016"
+            },
+            {
+              "role": "tild",
+              "text": "Thanks Sara! What is your full name?",
+              "time": "2026-05-30T04:12:25.245416"
+            },
+            {
+              "role": "human",
+              "text": "Sara Hassan",
+              "time": "2026-05-30T04:12:52.770675"
+            },
+            {
+              "role": "tild",
+              "text": "Welcome back, Sara Hassan! This is our 1st conversation. Last time we talked about make tea, give some, more unique flavorful. How can I help you today?",
+              "time": "2026-05-30T04:12:52.773498"
+            },
+            {
+              "role": "human",
+              "text": "i wanted to ask if you know if there is another Sara who talked to you before",
+              "time": "2026-05-30T04:13:29.095188"
+            },
+            {
+              "role": "tild",
+              "text": "This is our first conversation, Sara Hassan! We have not talked before.",
+              "time": "2026-05-30T04:13:29.096601"
+            },
+            {
+              "role": "human",
+              "text": "not me Sara Andersson",
+              "time": "2026-05-30T04:13:48.519293"
+            },
+            {
+              "role": "tild",
+              "text": "Sara Hassan, I don't know if there's another Sara who has interacted with me before. Our conversations are unique to each other, and I don't have any prior knowledge of other Saras. Would you like to start fresh or discuss something specific?",
+              "time": "2026-05-30T04:13:55.255004"
+            },
+            {
+              "role": "human",
+              "text": "no i will sleep",
+              "time": "2026-05-30T04:14:18.026889"
+            },
+            {
+              "role": "tild",
+              "text": "Goodnight Sara Hassan! It was nice chatting with you. Sweet dreams, and I hope our next conversation is more exciting.",
+              "time": "2026-05-30T04:14:19.337248"
+            }
+          ]
+        },
+        {
+          "date": "2026-05-30T04:14:30.125307",
+          "messages": [
+            {
+              "role": "human",
+              "text": "no",
+              "time": "2026-05-30T04:12:18.322179"
+            },
+            {
+              "role": "tild",
+              "text": "Before we continue, I need to know who I am talking to. What is your full name?",
+              "time": "2026-05-30T04:12:18.324433"
+            },
+            {
+              "role": "human",
+              "text": "Sara",
+              "time": "2026-05-30T04:12:25.244016"
+            },
+            {
+              "role": "tild",
+              "text": "Thanks Sara! What is your full name?",
+              "time": "2026-05-30T04:12:25.245416"
+            },
+            {
+              "role": "human",
+              "text": "Sara Hassan",
+              "time": "2026-05-30T04:12:52.770675"
+            },
+            {
+              "role": "tild",
+              "text": "Welcome back, Sara Hassan! This is our 1st conversation. Last time we talked about make tea, give some, more unique flavorful. How can I help you today?",
+              "time": "2026-05-30T04:12:52.773498"
+            },
+            {
+              "role": "human",
+              "text": "i wanted to ask if you know if there is another Sara who talked to you before",
+              "time": "2026-05-30T04:13:29.095188"
+            },
+            {
+              "role": "tild",
+              "text": "This is our first conversation, Sara Hassan! We have not talked before.",
+              "time": "2026-05-30T04:13:29.096601"
+            },
+            {
+              "role": "human",
+              "text": "not me Sara Andersson",
+              "time": "2026-05-30T04:13:48.519293"
+            },
+            {
+              "role": "tild",
+              "text": "Sara Hassan, I don't know if there's another Sara who has interacted with me before. Our conversations are unique to each other, and I don't have any prior knowledge of other Saras. Would you like to start fresh or discuss something specific?",
+              "time": "2026-05-30T04:13:55.255004"
+            },
+            {
+              "role": "human",
+              "text": "no i will sleep",
+              "time": "2026-05-30T04:14:18.026889"
+            },
+            {
+              "role": "tild",
+              "text": "Goodnight Sara Hassan! It was nice chatting with you. Sweet dreams, and I hope our next conversation is more exciting.",
+              "time": "2026-05-30T04:14:19.337248"
+            }
+          ]
+        }
+      ],
+      "visit_count": 1
+    }
+  },
+  "conversation_history": [
+    {
+      "role": "human",
+      "text": "yes",
+      "time": "2026-05-30T04:40:26.051591"
+    },
+    {
+      "role": "tild",
+      "text": "Okay! What is the password?",
+      "time": "2026-05-30T04:40:26.053871"
+    },
+    {
+      "role": "human",
+      "text": "Yellow",
+      "time": "2026-05-30T04:40:30.838927"
+    },
+    {
+      "role": "tild",
+      "text": "Correct password! Hey Omar! What is up bro?",
+      "time": "2026-05-30T04:40:30.842985"
+    },
+    {
+      "role": "human",
+      "text": "did you tlak to someone today?",
+      "time": "2026-05-30T04:40:59.561854"
+    },
+    {
+      "role": "tild",
+      "text": "Yeah bro! Today I talked to: Sara Hassan, Sara Andersson, Sara, Sara.",
+      "time": "2026-05-30T04:40:59.563495"
+    },
+    {
+      "role": "human",
+      "text": "did you have fun?",
+      "time": "2026-05-30T04:41:10.961078"
+    },
+    {
+      "role": "tild",
+      "text": "I had a good conversation with all those Sars. They were nice and chatty. How about you? Did something interesting happen today?",
+      "time": "2026-05-30T04:41:12.274910"
+    },
+    {
+      "role": "human",
+      "text": "yeah i had, why did you talk about with Sara Hassan?",
+      "time": "2026-05-30T04:41:49.028050"
+    },
+    {
+      "role": "tild",
+      "text": "Yeah bro, here is what I have on Sara Hassan: Sara Hassan — 1 visit(s), last seen 2026-05-30, topics: make tea, give some, more unique flavorful, know another sara, sara andersson know her, know sara hassan, 2 saved chat(s).",
+      "time": "2026-05-30T04:41:49.030231"
+    }
+  ],
+  "learned_omar_facts": []
 }
