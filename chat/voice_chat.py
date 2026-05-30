@@ -7,12 +7,7 @@ import tempfile
 import subprocess
 from dotenv import load_dotenv
 
-from src.rag import TildRAG
-from src.memory import TildMemory
-from src.search import TildSearch
-from src.entities import TildEntityRecognizer
-from src.deep_brain import DeepBrain
-from chat.chat import get_response, load_tild, FALLBACKS, FALLBACKS_SV, FALLBACKS_AR
+from src.pipeline import TildPipeline
 from src.language import detect_language
 
 load_dotenv()
@@ -76,17 +71,12 @@ def transcribe_audio(audio, sample_rate, whisper_model):
 
 
 def voice_chat():
-    model, tokenizer = load_tild()
-    rag = TildRAG()
-    memory = TildMemory()
-    search = TildSearch()
-    ner = TildEntityRecognizer()
-    brain = DeepBrain()
+    pipeline = TildPipeline()
 
     print("Loading Whisper...")
     whisper_model = whisper.load_model("small", device="cpu")
 
-    greeting = memory.greeting_for_session()
+    greeting = pipeline.start_session(clear_history=False)
     print(f"\nTild: {greeting}")
     speak(greeting)
     print("\nPress Enter to speak, type 'quit' to exit\n")
@@ -95,7 +85,7 @@ def voice_chat():
         user_input = input("\nPress Enter to speak or type 'quit': ").strip()
 
         if user_input.lower() == "quit":
-            farewell = "Vi ses bro!" if memory.is_omar() else "Goodbye! It was great talking with you."
+            farewell = "Vi ses bro!" if pipeline.memory.is_owner() else "Goodbye! It was great talking with you."
             speak(farewell)
             break
 
@@ -107,17 +97,8 @@ def voice_chat():
             continue
 
         print(f"You said: {text}")
-        language = detect_language(text)
-        tone = memory.get_tone()
-        memory.add_to_conversation("human", text)
-
-        response = get_response(
-            model, tokenizer, rag, memory,
-            search, ner, text, language, brain=brain
-        )
-
-        memory.add_to_conversation("tild", response)
-        speak(response, language)
+        result = pipeline.chat_turn(text, format_for_ui=False)
+        speak(result['response'], result['language'])
 
 
 if __name__ == "__main__":

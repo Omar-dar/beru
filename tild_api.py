@@ -1,54 +1,39 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
 import sys
 
-sys.path.append('/Users/omardarwish/tild')
+from src.venv_bootstrap import ensure_project_venv
 
-from src.rag import TildRAG
-from src.memory import TildMemory
-from src.search import TildSearch
-from src.entities import TildEntityRecognizer
-from src.deep_brain import DeepBrain
-from src.language import detect_language
-from chat.chat import get_response, load_tild
+ensure_project_venv()
+
+import tempfile
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
+
+from src.pipeline import TildPipeline
 
 app = Flask(__name__)
 CORS(app)
 
-print("Loading Tild brain...")
-rag = TildRAG()
-memory = TildMemory()
-search = TildSearch()
-ner = TildEntityRecognizer()
-brain = DeepBrain()
-model, tokenizer = load_tild()
+pipeline = TildPipeline()
+
+MAX_UPLOAD_MB = 20
+ALLOWED_EXTENSIONS = {'.pdf'}
 
 print("Tild API ready!")
 
-FALLBACKS = [
-    "That is an interesting question! I am still learning about that topic.",
-    "Hmm I am not sure about that yet. Ask me something else!",
-    "Good question! I need to learn more about that.",
-    "I do not have enough knowledge about that yet but I am always learning!",
-]
 
-FALLBACKS_SV = [
-    "Det är en intressant fråga! Jag lär mig fortfarande.",
-    "Jag är inte säker på det ännu. Fråga mig något annat!",
-    "Bra fråga! Jag behöver lära mig mer om det.",
-    "Jag vet inte tillräckligt om det ännu men jag lär mig hela tiden!",
-]
+def _allowed_file(filename):
+    _, ext = os.path.splitext(filename.lower())
+    return ext in ALLOWED_EXTENSIONS
 
-FALLBACKS_AR = [
-    "هذا سؤال مثير للاهتمام! لا أزال أتعلم.",
-    "لست متأكداً من ذلك بعد. اسألني شيئاً آخر!",
-]
 
 @app.route('/start', methods=['GET'])
 def start():
-    memory.start_session(clear_history=True)
+    pipeline.start_session(clear_history=True)
     lang = 'en'
+    memory = pipeline.memory
     return jsonify({
         'response': memory.greeting_for_session(lang),
         'language': lang,
@@ -56,48 +41,107 @@ def start():
         'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
         'is_owner': memory.is_owner(),
         'tone': memory.get_tone(),
+        'active_document': memory.get_active_document_info(),
     })
+
 
 @app.route('/clear', methods=['POST'])
 def clear_chat():
-    memory.start_session(clear_history=True)
+    greeting = pipeline.start_session(clear_history=True)
     return jsonify({
         'status': 'ok',
-        'response': memory.greeting_for_session(),
+        'response': greeting,
+        'active_document': None,
     })
+
+
+@app.route('/documents', methods=['GET'])
+def list_documents():
+    return jsonify({
+        'documents': pipeline.rag.document_index.list_documents(),
+        'active_document': pipeline.memory.get_active_document_info(),
+    })
+
+
+@app.route('/upload', methods=['POST'])
+def upload_document():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file field. Use form key "file".'}), 400
+
+    upload = request.files['file']
+    if not upload or not upload.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    filename = secure_filename(upload.filename)
+    if not _allowed_file(filename):
+        return jsonify({'error': 'Only PDF files are supported for now.'}), 400
+
+    upload.seek(0, os.SEEK_END)
+    size = upload.tell()
+    upload.seek(0)
+    if size > MAX_UPLOAD_MB * 1024 * 1024:
+        return jsonify({'error': f'File too large. Max {MAX_UPLOAD_MB} MB.'}), 400
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            upload.save(tmp.name)
+            tmp_path = tmp.name
+
+        meta = pipeline.ingest_pdf(tmp_path, filename)
+        short = f'Ready bro — I indexed "{meta["filename"]}". Ask me anything about it.'
+        if not pipeline.memory.is_owner():
+            short = f'Ready — I indexed "{meta["filename"]}". Ask me anything about it.'
+        return jsonify({
+            'status': 'ok',
+            'document': {
+                'id': meta['id'],
+                'filename': meta['filename'],
+                'page_count': meta['page_count'],
+                'chunk_count': meta['chunk_count'],
+                'preview': meta['preview'],
+                'uploaded_at': meta['uploaded_at'],
+            },
+            'active_document': pipeline.memory.get_active_document_info(),
+            'message': short,
+        })
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 422
+    except Exception as exc:
+        return jsonify({'error': f'Upload failed: {exc}'}), 500
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    data = request.json
+    data = request.json or {}
     message = data.get('message', '').strip()
     new_chat = data.get('new_chat', False)
+    document_id = data.get('document_id')
 
-    if new_chat:
-        memory.start_session(clear_history=True)
+    if document_id:
+        doc = pipeline.rag.document_index.get_document(document_id)
+        if doc:
+            pipeline.memory.set_active_document(doc['id'], doc['filename'])
 
     if not message:
         return jsonify({'error': 'No message'}), 400
 
-    language = detect_language(message)
-    tone = memory.get_tone()
-    memory.add_to_conversation('human', message)
+    result = pipeline.chat_turn(message, new_chat=new_chat, format_for_ui=True)
+    return jsonify(result)
 
-    response = get_response(model, tokenizer, rag, memory, search, ner, message, language, brain=brain)
-
-    memory.add_to_conversation('tild', response)
-
-    return jsonify({
-        'response': response,
-        'language': language,
-        'tone': tone,
-        'user': memory.get_user_name(),
-        'is_owner': memory.is_owner(),
-        'session_identified': memory.is_session_identified(),
-    })
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'message': 'Tild API is running'})
+    doc_count = len(pipeline.rag.document_index.documents)
+    return jsonify({
+        'status': 'ok',
+        'message': 'Tild API is running',
+        'documents_indexed': doc_count,
+    })
+
 
 if __name__ == '__main__':
     app.run(port=8000, debug=False)

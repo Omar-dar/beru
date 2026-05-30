@@ -2,6 +2,8 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import re
 
+from src.document_index import TildDocumentIndex
+
 
 class TildRAG:
 
@@ -36,6 +38,8 @@ class TildRAG:
                 )
 
         self._encode_questions()
+
+        self.document_index = TildDocumentIndex(self.model)
 
         print(
             f"Tild remembers "
@@ -258,3 +262,27 @@ class TildRAG:
             best_score
 
         )
+
+    def add_pair(self, question, answer):
+        """Append a Q&A pair to in-memory RAG (after disk write in learning.py)."""
+        question = question.strip()
+        answer = answer.strip()
+        if not question or not answer:
+            return False
+
+        if question in self.questions:
+            idx = self.questions.index(question)
+            self.answers[idx] = answer
+        else:
+            self.questions.append(question)
+            self.answers.append(answer)
+
+        new_embedding = self.model.encode(
+            [question],
+            normalize_embeddings=True,
+        )
+        if hasattr(self, 'embeddings') and len(self.embeddings) > 0:
+            self.embeddings = np.vstack([self.embeddings, new_embedding])
+        else:
+            self.embeddings = new_embedding
+        return True

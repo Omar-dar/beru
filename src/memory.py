@@ -155,6 +155,8 @@ class TildMemory:
             'awaiting_disambiguation': False,
             'disambiguation_candidates': [],
             'pending_full_name': None,
+            'active_document_id': None,
+            'active_document_name': None,
         }
 
     def _load_memory(self):
@@ -206,9 +208,14 @@ class TildMemory:
 
     def start_session(self, clear_history=True):
         """Start fresh session — ask Omar to confirm if he was verified before."""
+        prev_doc_id = self.session.get('active_document_id')
+        prev_doc_name = self.session.get('active_document_name')
         if clear_history:
             self.finalize_session_for_user()
         self.session = self._empty_session()
+        if prev_doc_id:
+            self.session['active_document_id'] = prev_doc_id
+            self.session['active_document_name'] = prev_doc_name
         if clear_history:
             self.clear_conversation()
         if self.is_owner_permanently_verified():
@@ -671,6 +678,8 @@ class TildMemory:
         self.session['pending_language'] = None
 
     def identify_session(self, name, language='en', is_owner=False):
+        prev_doc_id = self.session.get('active_document_id')
+        prev_doc_name = self.session.get('active_document_name')
         user_id = OWNER_NAME if is_owner else self.session.get('user_id')
         display_name = OWNER_NAME if is_owner else self._first_name(name)
         self.session = {
@@ -687,6 +696,8 @@ class TildMemory:
             'awaiting_disambiguation': False,
             'disambiguation_candidates': [],
             'pending_full_name': None,
+            'active_document_id': prev_doc_id,
+            'active_document_name': prev_doc_name,
         }
         record_key = OWNER_NAME if is_owner else user_id
         existing = self.known_users.get(record_key, {})
@@ -1013,6 +1024,8 @@ class TildMemory:
         if not self.is_owner():
             return False
         text_lower = text.lower()
+        if self.is_owner_users_full_list_request(text):
+            return False
         return any(trigger in text_lower for trigger in OMAR_RECALL_INSTRUCTIONS_TRIGGERS)
 
     def extract_remember_instruction(self, text):
@@ -1095,6 +1108,73 @@ class TildMemory:
             return f'حسناً! سأتذكر ذلك: {fact}'
         return f'Got it bro! I will remember that: {fact}'
 
+    def remember_facts_from_document(self, brain, index, doc_id, language='en'):
+        """Extract facts from the active PDF and save them for Omar."""
+        hits = index.chunks_for_document(doc_id)
+        if not hits:
+            if language == 'sv':
+                return 'Jag hittar inget indexerat innehåll i PDF:en ännu bro.'
+            return 'I cannot find any indexed content in that PDF yet bro.'
+
+        doc_name = self.get_active_document_name() or hits[0].get('filename', 'document')
+        context = index.format_context(
+            hits, max_chars=8000, language=language, include_analysis=False
+        )
+        facts = brain.extract_document_facts(context, doc_name=doc_name, language=language)
+        if not facts:
+            facts = self._fallback_document_facts(hits)
+
+        saved, skipped = [], 0
+        for fact in facts:
+            if self.add_omar_fact(fact):
+                saved.append(fact)
+            else:
+                skipped += 1
+
+        if language == 'sv':
+            if not saved:
+                return (
+                    f'Jag läste {doc_name} men hade redan sparat det mesta bro. '
+                    f'({skipped} dubbletter hoppades över.)'
+                )
+            preview = '; '.join(saved[:4])
+            extra = f' (+{len(saved) - 4} till)' if len(saved) > 4 else ''
+            return (
+                f'Klart bro! Jag sparade {len(saved)} saker från {doc_name} '
+                f'om dig: {preview}{extra}. Fråga mig när som helst.'
+            )
+
+        if not saved:
+            return (
+                f'I read {doc_name} bro but I already had most of that saved '
+                f'({skipped} duplicates skipped).'
+            )
+        preview = '; '.join(saved[:4])
+        extra = f' (+{len(saved) - 4} more)' if len(saved) > 4 else ''
+        return (
+            f'Done bro! I saved {len(saved)} facts from {doc_name} about you: '
+            f'{preview}{extra}. Ask me anytime what your CV says or what I remember.'
+        )
+
+    @staticmethod
+    def _fallback_document_facts(hits):
+        """Simple line-based fallback if the brain extract fails."""
+        import re
+        facts = []
+        for hit in hits:
+            for line in hit['text'].splitlines():
+                line = line.strip(' •-\t')
+                if len(line) < 12 or len(line) > 140:
+                    continue
+                if re.match(r'^[A-ZÅÄÖ][a-zåäö].*(?:@|\d{3}|github|\.se|\.com)', line):
+                    facts.append(line)
+                elif re.search(
+                    r'\b(universitet|university|engineering|projekt|project|servitör|körkort)\b',
+                    line, re.I,
+                ):
+                    facts.append(line)
+        return facts[:15]
+
     def handle_forget_instruction(self, text, language='en'):
         hint = self.extract_forget_hint(text)
         removed = self.remove_omar_facts_matching(hint)
@@ -1110,15 +1190,9 @@ class TildMemory:
         return f'Okay bro, I forgot that: {"; ".join(removed)}'
 
     def answer_omar_recall_instructions(self, language='en'):
-        if not self.learned_omar_facts:
-            if language == 'sv':
-                return 'Du har inte bett mig komma ihåg något speciellt ännu bro.'
-            return 'You have not told me to remember anything specific yet bro.'
-
-        items = '; '.join(self.learned_omar_facts)
-        if language == 'sv':
-            return f'Du har bett mig komma ihåg detta bro: {items}'
-        return f'You told me to remember this bro: {items}'
+        return self.knowledge.format_omar_recall_for_owner(
+            self.learned_omar_facts, language
+        )
 
     def is_omar_teaching_message(self, text):
         return (
@@ -1189,6 +1263,12 @@ class TildMemory:
 
     def is_tild_experience_question(self, text):
         return self.knowledge.is_tild_experience_question(text)
+
+    def is_tild_activity_question(self, text):
+        return self.knowledge.is_tild_activity_question(text)
+
+    def answer_tild_activity_question(self, language='en'):
+        return self.knowledge.answer_tild_activity_question('', language, memory=self)
 
     def answer_tild_experience_question(self, language='en'):
         return self.knowledge.answer_tild_experience_question('', language, memory=self)
@@ -1295,9 +1375,13 @@ class TildMemory:
         text_lower = text.lower()
         if any(trigger in text_lower for trigger in OWNER_USERS_TRIGGERS):
             return True
+        if self.is_owner_users_full_list_request(text):
+            return True
         if any(p in text_lower for p in (
             'who is this friend', 'who was that', 'about what did you',
             'what did you talk', 'who is that person', 'who were they',
+            'people you talked to', 'users you talked to', 'people you talk to',
+            'list them', 'list the users', 'list those users',
         )):
             return True
         if any(p in text_lower for p in (
@@ -1308,7 +1392,10 @@ class TildMemory:
             if any(t in recent for t in OWNER_USERS_TRIGGERS) or self.is_owner_users_conversation_context():
                 return True
         if self.is_owner_users_conversation_context():
-            if any(w in text_lower for w in ('friend', 'who is', 'who was', 'talk about', 'talked about')):
+            if any(w in text_lower for w in (
+                'friend', 'who is', 'who was', 'talk about', 'talked about',
+                'list', 'users', 'people', 'them', 'names',
+            )):
                 return True
         return False
 
@@ -1441,7 +1528,7 @@ class TildMemory:
                     if total > len(shown) else
                     'Ask about someone by name for full details.'
                 )
-            return header + '\n' + '\n'.join(f'- {line}' for line in lines) + '\n' + footer
+            return header + '\n\n' + '\n'.join(f'- {line}' for line in lines) + '\n\n' + footer
 
         # Default: short summary — recent users only
         recent = guests[:OWNER_USERS_SUMMARY_LIMIT]
@@ -1465,7 +1552,7 @@ class TildMemory:
                 'Ask about someone by name for full details.'
             )
 
-        return header + '\n' + '\n'.join(f'- {line}' for line in lines) + '\n' + footer
+        return header + '\n\n' + '\n'.join(f'- {line}' for line in lines) + '\n\n' + footer
 
     def answer_about_self(self, language='en'):
         if not self.is_session_identified():
@@ -1571,6 +1658,11 @@ class TildMemory:
         return "Who do you mean? Tell me their full name and I will check my memory."
 
     def answer_from_knowledge(self, user_input, language='en'):
+        if self.knowledge.is_tild_activity_question(user_input):
+            return self.knowledge.answer_tild_activity_question(
+                user_input, language, memory=self
+            )
+
         if self.knowledge.is_tild_experience_question(user_input):
             return self.knowledge.answer_tild_experience_question(
                 user_input, language, memory=self
@@ -1669,3 +1761,47 @@ class TildMemory:
         if language == 'ar':
             return 'كلمة المرور صحيحة! أهلاً Omar! كيف حالك يا صديقي؟'
         return 'Correct password! Hey Omar! What is up bro?'
+
+    def set_active_document(self, doc_id, filename):
+        self.session['active_document_id'] = doc_id
+        self.session['active_document_name'] = filename
+
+    def clear_active_document(self):
+        self.session['active_document_id'] = None
+        self.session['active_document_name'] = None
+
+    def get_active_document_id(self):
+        return self.session.get('active_document_id')
+
+    def get_active_document_name(self):
+        return self.session.get('active_document_name')
+
+    def get_active_document_info(self):
+        doc_id = self.get_active_document_id()
+        if not doc_id:
+            return None
+        return {
+            'id': doc_id,
+            'filename': self.get_active_document_name(),
+        }
+
+    def answer_pre_upload_document_intent(self, language='en'):
+        if language == 'sv':
+            return (
+                'Absolut! Ladda upp PDF:en med paperclip-knappen, '
+                'sen kan du fråga vad den säger eller be mig sammanfatta den.'
+            )
+        if language == 'ar':
+            return (
+                'تمام! ارفع ملف PDF باستخدام زر المرفق، '
+                'ثم اسألني ماذا يقول أو اطلب ملخصاً.'
+            )
+        if self.is_owner():
+            return (
+                "Sounds good bro! Hit the paperclip and upload the PDF, "
+                "then ask me what it says or tell me to summarize it."
+            )
+        return (
+            "Sure! Use the paperclip button to upload your PDF, "
+            "then ask me what it says or request a summary."
+        )

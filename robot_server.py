@@ -5,17 +5,8 @@ import tempfile
 import os
 import wave
 import struct
-import sys
 
-sys.path.append('/Users/omardarwish/tild')
-from src.rag import TildRAG
-from src.memory import TildMemory
-from src.search import TildSearch
-from src.entities import TildEntityRecognizer
-from src.deep_brain import DeepBrain
-from src.language import detect_language
-from src.router import route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS
-from chat.chat import is_analysis_request
+from src.pipeline import TildPipeline
 
 MIC_RATE = 16000
 SPK_RATE = 22050
@@ -25,18 +16,8 @@ print("Loading Whisper...")
 whisper_model = whisper.load_model("small", device="cpu")
 print("Whisper ready!")
 
-print("Loading Tild brain...")
-rag = TildRAG()
-memory = TildMemory()
-search = TildSearch()
-ner = TildEntityRecognizer()
-print("Tild brain ready!")
+pipeline = TildPipeline(load_model=False)
 
-print("Loading Tild deep brain...")
-brain = DeepBrain(model="llama3.2:3b")
-
-def detect_language_legacy(text):
-    return detect_language(text)
 
 def audio_to_wav(audio_data, sample_rate, path):
     with wave.open(path, 'w') as wf:
@@ -44,6 +25,7 @@ def audio_to_wav(audio_data, sample_rate, path):
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
         wf.writeframes(audio_data)
+
 
 def text_to_speech(text):
     if len(text) > 100:
@@ -71,47 +53,6 @@ def text_to_speech(text):
     os.unlink(pcm_path)
     return pcm_data
 
-def get_ai_response(text, language):
-    print(f"You said: {text}")
-    memory.add_to_conversation('human', text)
-    tone = memory.get_tone()
-
-    knowledge_answer = memory.answer_from_knowledge(text, language)
-    if knowledge_answer:
-        print("[Knowledge memory used]")
-        memory.add_to_conversation('tild', knowledge_answer)
-        return knowledge_answer
-
-    route = route_request(text, memory, is_analysis_fn=is_analysis_request, search=search)
-
-    if route == ROUTE_ANALYSIS:
-        rag_answer, score = rag.find_answer(text, threshold=0.92, quiet=True)
-        if rag_answer and score >= 0.92:
-            print(f"[RAG match: {score:.2f}]")
-            memory.add_to_conversation('tild', rag_answer)
-            return rag_answer
-        entities = ner.extract_entities(text)
-        if entities['persons'] or entities['places'] or entities['dates']:
-            result = ner.format_entities(entities, language)
-            memory.add_to_conversation('tild', result)
-            return result
-
-    if route == ROUTE_SEARCH:
-        result = search.search(text)
-        if result:
-            memory.add_to_conversation('tild', result)
-            return result
-
-    if route == ROUTE_RAG:
-        rag_answer, score = rag.find_answer(text, threshold=0.92)
-        if rag_answer and score >= 0.92:
-            memory.add_to_conversation('tild', rag_answer)
-            return rag_answer
-
-    print("[Tild thinking...]")
-    response = brain.ask(text, language, tone=tone, memory=memory)
-    memory.add_to_conversation('tild', response)
-    return response
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -154,10 +95,8 @@ while True:
         if not text:
             text = "hello"
 
-        language = detect_language(text)
-        print(f"Language: {language}")
-
-        response = get_ai_response(text, language)
+        turn = pipeline.chat_turn(text, format_for_ui=False)
+        response = turn['response']
         print(f"Tild: {response}")
 
         print("Converting to speech...")
@@ -170,7 +109,7 @@ while True:
             sent = 0
             while sent < resp_size:
                 chunk = min(4096, resp_size - sent)
-                conn.send(speech_data[sent:sent+chunk])
+                conn.send(speech_data[sent:sent + chunk])
                 sent += chunk
             print(f"Sent {resp_size} bytes of speech back!")
         except BrokenPipeError:

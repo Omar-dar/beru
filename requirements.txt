@@ -12,3 +12,5 @@ python-dotenv
 flask
 flask-cors
 requests
+pymupdf
+pdfplumber

@@ -64,6 +64,9 @@ def is_good_response(response):
 def detect_name(user_input_lower):
     from src.memory import GREETING_WORDS, OWNER_NAME, TildMemory
 
+    if looks_like_question(user_input_lower):
+        return None
+
     if TildMemory.looks_like_yes_or_no(user_input_lower):
         return None
 
@@ -162,7 +165,35 @@ NAME_FILLER_WORDS = {
     "a", "an", "the", "not", "no", "yes", "ok", "okay", "it", "its", "it's",
     "is", "me", "here", "sure", "good", "bad", "just", "only", "also", "very",
     "really", "this", "that", "i", "im", "am", "my", "name", "call", "speaking",
+    "what", "when", "where", "why", "how", "who", "which", "about", "document",
+    "pdf", "file", "upload", "summarize", "summary", "tell", "explain", "describe",
+    "main", "points", "page", "pages", "the", "does", "say", "mean", "your",
 }
+
+QUESTION_STARTERS = (
+    'what ', 'who ', 'where ', 'when ', 'why ', 'how ', 'which ', 'can ', 'could ',
+    'would ', 'should ', 'is ', 'are ', 'do ', 'does ', 'did ', 'will ', 'tell me',
+    'explain ', 'describe ', 'summarize', 'summarise', 'list ', 'show me',
+    'vad ', 'vem ', 'hur ', 'när ', 'varför ', 'kan du', 'berätta',
+)
+
+
+def looks_like_question(text_lower):
+    """Avoid treating questions as person names during identity gate."""
+    text = text_lower.strip().strip('.!,')
+    if not text:
+        return False
+    if text.endswith('?'):
+        return True
+    if any(text.startswith(s) for s in QUESTION_STARTERS):
+        return True
+    try:
+        from src.document_index import TildDocumentIndex
+        if TildDocumentIndex.is_document_question(text):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _strip_name_intro(text_lower):
@@ -186,6 +217,9 @@ def is_valid_full_name(full_name):
 def detect_full_name(user_input_lower):
     """Detect a multi-word full name from user input."""
     from src.memory import GREETING_WORDS, OWNER_NAME
+
+    if looks_like_question(user_input_lower):
+        return None
 
     if 'omar darwish' in user_input_lower:
         return OWNER_NAME + ' Darwish'
@@ -213,7 +247,64 @@ def is_analysis_request(text):
     return any(trigger in text_lower for trigger in analysis_triggers)
 
 
+def try_remember_from_document(user_input, rag, memory, brain, language):
+    """Save facts from the active PDF into Omar's memory."""
+    index = getattr(rag, 'document_index', None)
+    if not brain or not index or not memory.is_owner():
+        return None
+    if not index.is_remember_from_document_intent(user_input):
+        return None
+
+    doc_id = index.resolve_document_id(memory)
+    if not doc_id:
+        if language == 'sv':
+            return 'Ladda upp PDF:en först bro, sen kan jag spara info från den.', 'document'
+        return 'Upload the PDF first bro, then I can save info from it.', 'document'
+
+    print(f"[Document remember: doc={doc_id}]")
+    return memory.remember_facts_from_document(
+        brain, index, doc_id, language
+    ), 'document'
+
+
+def try_answer_from_document(user_input, rag, memory, brain, language, tone):
+    """Answer using uploaded PDF chunks when a document is active in the session."""
+    if not brain or not getattr(rag, 'document_index', None):
+        return None
+
+    index = rag.document_index
+    is_doc_q = index.is_document_question(user_input)
+    doc_id = index.resolve_document_id(memory)
+
+    if not doc_id:
+        if is_doc_q:
+            if language == 'sv':
+                return 'Ladda upp en PDF först bro, sen kan jag svara om den.', 'document'
+            return 'Upload a PDF first bro, then I can answer questions about it.', 'document'
+        return None
+
+    if not is_doc_q:
+        hits = index.search(user_input, doc_id=doc_id, top_k=5)
+        if not hits or hits[0]['score'] < 0.32:
+            return None
+    else:
+        hits = index.chunks_for_document(doc_id)
+
+    if not hits:
+        name = memory.get_active_document_name() or 'the document'
+        if language == 'sv':
+            return f'Jag har inget indexerat innehåll i {name} ännu.', 'document'
+        return f"I have no indexed content in {name} yet.", 'document'
+
+    context = index.format_context(hits, language=language)
+    print(f"[Document RAG: {len(hits)} chunk(s), doc={doc_id}, doc_q={is_doc_q}]")
+    return brain.ask(
+        user_input, language, tone=tone, memory=memory, document_context=context
+    ), 'document'
+
+
 def get_response(model, tokenizer, rag, memory, search, ner, user_input, language="en", brain=None):
+    """Return (response_text, source) where source tracks how the answer was produced."""
     language = detect_language(user_input)
     user_input_lower = user_input.lower()
     tone = memory.get_tone()
@@ -228,15 +319,15 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             memory.clear_pending_name()
             if pending_name == "Omar":
                 memory.mark_as_owner(pending_language)
-                return memory.owner_greeting(pending_language)
+                return memory.owner_greeting(pending_language), 'gate'
 
             memory.set_user(pending_name, pending_language)
-            return memory.formal_greeting(pending_name, pending_language)
+            return memory.formal_greeting(pending_name, pending_language), 'gate'
 
         memory.clear_pending_name()
         if language == "sv":
-            return "Fel lösenord! Jag kan inte verifiera din identitet. Vem är du?"
-        return "Wrong password! I cannot verify your identity. Who are you?"
+            return "Fel lösenord! Jag kan inte verifiera din identitet. Vem är du?", 'gate'
+        return "Wrong password! I cannot verify your identity. Who are you?", 'gate'
 
     # Must know who is talking before anything else
     if not memory.is_session_identified():
@@ -245,22 +336,22 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             matched_id = memory.resolve_disambiguation(user_input)
             if matched_id:
                 memory.confirm_disambiguation(matched_id, language)
-                return memory.welcome_back_greeting(matched_id, language)
-            return memory.ask_disambiguation_retry(language)
+                return memory.welcome_back_greeting(matched_id, language), 'gate'
+            return memory.ask_disambiguation_retry(language), 'gate'
 
         # Waiting for full name after first name only
         if memory.is_awaiting_full_name():
             full_name = detect_full_name(user_input_lower)
             if full_name and len(full_name.split()) >= 2:
                 memory.session['awaiting_full_name'] = False
-                return memory.handle_guest_registration(full_name, language)
+                return memory.handle_guest_registration(full_name, language), 'gate'
 
             partial = memory.session.get('partial_first_name')
             single = detect_name(user_input_lower)
             if single and not partial:
                 memory.begin_full_name_collection(partial_first_name=single, language=language)
-                return memory.ask_full_name(language, partial_first_name=single)
-            return memory.ask_full_name(language, partial_first_name=partial)
+                return memory.ask_full_name(language, partial_first_name=single), 'gate'
+            return memory.ask_full_name(language, partial_first_name=partial), 'gate'
 
         # Waiting for Omar to confirm identity
         if memory.is_awaiting_owner_confirm():
@@ -270,22 +361,24 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             if memory.is_affirmative(user_input) or detected_name == 'Omar':
                 memory.clear_awaiting_owner_confirm()
                 memory.set_pending_name('Omar', language)
-                return memory.ask_owner_password(language)
+                return memory.ask_owner_password(language), 'gate'
 
             if memory.is_negative(user_input):
                 memory.clear_awaiting_owner_confirm()
-                return memory.ask_to_identify(language)
+                return memory.ask_to_identify(language), 'gate'
 
             if full_name and detected_name != 'Omar':
+                if looks_like_question(user_input_lower):
+                    return memory.ask_owner_confirm_again(language), 'gate'
                 memory.clear_awaiting_owner_confirm()
-                return memory.handle_guest_registration(full_name, language)
+                return memory.handle_guest_registration(full_name, language), 'gate'
 
             if detected_name and detected_name != 'Omar':
                 memory.clear_awaiting_owner_confirm()
                 memory.begin_full_name_collection(partial_first_name=detected_name, language=language)
-                return memory.ask_full_name(language, partial_first_name=detected_name)
+                return memory.ask_full_name(language, partial_first_name=detected_name), 'gate'
 
-            return memory.ask_owner_confirm_again(language)
+            return memory.ask_owner_confirm_again(language), 'gate'
 
         full_name = detect_full_name(user_input_lower)
         detected_name = detect_name(user_input_lower)
@@ -293,62 +386,84 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         if detected_name in PROTECTED_USERS:
             memory.set_pending_name(detected_name, language)
             if language == "sv":
-                return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?"
-            return f"Hey! I recognize the name {detected_name}. What is the password?"
+                return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?", 'gate'
+            return f"Hey! I recognize the name {detected_name}. What is the password?", 'gate'
 
         if full_name and len(full_name.split()) >= 2 and detected_name != 'Omar':
-            return memory.handle_guest_registration(full_name, language)
+            if looks_like_question(user_input_lower):
+                return memory.ask_to_identify(language), 'gate'
+            return memory.handle_guest_registration(full_name, language), 'gate'
 
         if detected_name and detected_name != 'Omar':
             memory.begin_full_name_collection(partial_first_name=detected_name, language=language)
-            return memory.ask_full_name(language, partial_first_name=detected_name)
+            return memory.ask_full_name(language, partial_first_name=detected_name), 'gate'
 
-        return memory.ask_to_identify(language)
+        return memory.ask_to_identify(language), 'gate'
+
+    # PDF document questions — before generic handlers (avoid brain hallucinating Tild rules)
+    index = getattr(rag, 'document_index', None)
+    if index and index.is_pre_upload_document_intent(user_input):
+        return memory.answer_pre_upload_document_intent(language), 'memory'
+
+    remember_answer = try_remember_from_document(
+        user_input, rag, memory, brain, language
+    )
+    if remember_answer:
+        return remember_answer
+
+    doc_answer = try_answer_from_document(
+        user_input, rag, memory, brain, language, tone
+    )
+    if doc_answer:
+        return doc_answer
 
     # Identity and name questions
     if memory.is_identity_question(user_input):
-        return memory.answer_identity(language)
+        return memory.answer_identity(language), 'memory'
 
     if memory.is_name_question(user_input):
-        return memory.answer_name_question(language)
+        return memory.answer_name_question(language), 'memory'
 
     if memory.is_trust_question(user_input):
-        return memory.answer_trust_question(language)
+        return memory.answer_trust_question(language), 'memory'
 
     if memory.is_memory_question(user_input):
-        return memory.answer_memory_question(language)
+        return memory.answer_memory_question(language), 'memory'
 
     if memory.is_past_conversation_question(user_input):
-        return memory.answer_past_conversation_question(language)
+        return memory.answer_past_conversation_question(language), 'memory'
 
     if memory.is_owner_users_question(user_input):
-        return memory.answer_owner_users_question(user_input, language)
+        return memory.answer_owner_users_question(user_input, language), 'memory'
 
     if memory.is_owner():
         if memory.is_omar_forget_instruction(user_input):
-            return memory.handle_forget_instruction(user_input, language)
+            return memory.handle_forget_instruction(user_input, language), 'memory'
         if memory.is_omar_remember_instruction(user_input):
-            return memory.handle_remember_instruction(user_input, language)
+            return memory.handle_remember_instruction(user_input, language), 'memory'
         if memory.is_omar_recall_instructions(user_input):
-            return memory.answer_omar_recall_instructions(language)
+            return memory.answer_omar_recall_instructions(language), 'memory'
 
     if memory.is_asking_about_self(user_input):
-        return memory.answer_about_self(language)
+        return memory.answer_about_self(language), 'memory'
 
     if memory.is_asking_about_other_person(user_input):
-        return memory.answer_about_other_person(user_input, language)
+        return memory.answer_about_other_person(user_input, language), 'memory'
 
     if memory.is_casual_conversation_reply(user_input):
-        return memory.answer_casual_reply(language)
+        return memory.answer_casual_reply(language), 'memory'
+
+    if memory.is_tild_activity_question(user_input):
+        return memory.answer_tild_activity_question(language), 'memory'
 
     if memory.is_tild_experience_question(user_input):
-        return memory.answer_tild_experience_question(language)
+        return memory.answer_tild_experience_question(language), 'memory'
 
     # Permanent knowledge — Tild identity and Omar facts
     knowledge_answer = memory.answer_from_knowledge(user_input, language)
     if knowledge_answer:
         print("[Knowledge memory used]")
-        return knowledge_answer
+        return knowledge_answer, 'knowledge'
 
     # Correction check
     if memory.is_correction(user_input):
@@ -365,20 +480,20 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
                 if memory.is_owner():
                     memory.add_omar_fact(correct)
                 if language == "sv":
-                    return "Tack för korrigeringen! Jag kommer att komma ihåg det."
+                    return "Tack för korrigeringen! Jag kommer att komma ihåg det.", 'correction'
                 if language == "ar":
-                    return "شكراً على التصحيح! سأتذكر ذلك."
-                return "Thank you for correcting me! I will remember that."
+                    return "شكراً على التصحيح! سأتذكر ذلك.", 'correction'
+                return "Thank you for correcting me! I will remember that.", 'correction'
 
             if language == "sv":
-                return "Jag förstår att jag hade fel! Kan du berätta det rätta svaret?"
+                return "Jag förstår att jag hade fel! Kan du berätta det rätta svaret?", 'correction'
             if language == "ar":
-                return "أفهم أنني كنت مخطئاً! هل يمكنك إخباري بالإجابة الصحيحة؟"
-            return "I understand I was wrong! Can you tell me the correct answer?"
+                return "أفهم أنني كنت مخطئاً! هل يمكنك إخباري بالإجابة الصحيحة؟", 'correction'
+            return "I understand I was wrong! Can you tell me the correct answer?", 'correction'
 
     correction_answer = memory.find_correction(user_input)
     if correction_answer:
-        return correction_answer
+        return correction_answer, 'memory'
 
     # Router — decide memory vs RAG vs search vs deep brain
     route = route_request(user_input, memory, is_analysis_fn=is_analysis_request, search=search)
@@ -387,11 +502,11 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         rag_answer, score = rag.find_answer(user_input, threshold=0.92, quiet=True)
         if rag_answer and score >= 0.92:
             print(f"[RAG match: {score:.2f}]")
-            return rag_answer
+            return rag_answer, 'rag'
         entities = ner.extract_entities(user_input)
         if entities["persons"] or entities["places"] or entities["dates"]:
             print("[Entity recognition used]")
-            return ner.format_entities(entities, language)
+            return ner.format_entities(entities, language), 'analysis'
 
     if route == ROUTE_SEARCH:
         print("[Searching internet...]")
@@ -401,40 +516,51 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
             if len(result) > 150:
                 result = result[:150] + "..."
             print(f"[Found: {result[:50]}...]")
-            return search.format_response(result, user_input)
+            return search.format_response(result, user_input), 'search'
         if language == "sv":
-            return "Jag försökte söka efter det men kunde inte ansluta just nu."
+            return "Jag försökte söka efter det men kunde inte ansluta just nu.", 'search'
         if language == "ar":
-            return "حاولت البحث لكن لم أتمكن من الاتصال الآن."
-        return "I tried searching for that but could not connect right now."
+            return "حاولت البحث لكن لم أتمكن من الاتصال الآن.", 'search'
+        return "I tried searching for that but could not connect right now.", 'search'
 
     if route == ROUTE_RAG:
         rag_answer, score = rag.find_answer(user_input, threshold=0.92)
         if rag_answer and score >= 0.92:
             print(f"[RAG match: {score:.2f}]")
-            return rag_answer
+            return rag_answer, 'rag'
         route = ROUTE_BRAIN
 
     if route == ROUTE_BRAIN and brain:
         print("[Tild thinking...]")
-        return brain.ask(user_input, language, tone=tone, memory=memory)
+        document_context = ""
+        index = getattr(rag, 'document_index', None)
+        if index and memory:
+            doc_id = index.resolve_document_id(memory)
+            if doc_id and index.is_document_question(user_input):
+                hits = index.chunks_for_document(doc_id)
+                if hits:
+                    document_context = index.format_context(hits, language=language)
+            elif doc_id:
+                hits = index.search(user_input, doc_id=doc_id, top_k=3, min_score=0.28)
+                if hits:
+                    document_context = index.format_context(hits, language=language)
+        return brain.ask(
+            user_input, language, tone=tone, memory=memory, document_context=document_context
+        ), 'brain'
 
     if language == "ar":
-        return random.choice(FALLBACKS_AR)
+        return random.choice(FALLBACKS_AR), 'fallback'
     if language == "sv":
-        return random.choice(FALLBACKS_SV)
-    return random.choice(FALLBACKS)
+        return random.choice(FALLBACKS_SV), 'fallback'
+    return random.choice(FALLBACKS), 'fallback'
 
 
 def chat():
-    model, tokenizer = load_tild()
-    rag = TildRAG()
-    memory = TildMemory()
-    search = TildSearch()
-    ner = TildEntityRecognizer()
-    brain = DeepBrain()
+    from src.pipeline import TildPipeline
 
-    greeting = memory.greeting_for_session()
+    pipeline = TildPipeline()
+
+    greeting = pipeline.start_session(clear_history=False)
     print(f"Tild: {greeting}\n")
     print("Type your message (or 'quit' to exit)\n")
 
@@ -445,25 +571,16 @@ def chat():
             continue
 
         if user_input.lower() == "quit":
-            if memory.is_owner():
+            if pipeline.memory.is_owner():
                 print("Tild: Vi ses bro!")
-            elif memory.is_session_identified():
+            elif pipeline.memory.is_session_identified():
                 print("Tild: Goodbye! It was great talking with you.")
             else:
                 print("Tild: Goodbye!")
             break
 
-        language = detect_language(user_input)
-        tone = memory.get_tone()
-        memory.add_to_conversation("human", user_input)
-
-        response = get_response(
-            model, tokenizer, rag, memory,
-            search, ner, user_input, language, brain=brain
-        )
-
-        memory.add_to_conversation("tild", response)
-        print(f"Tild: {response}\n")
+        result = pipeline.chat_turn(user_input, format_for_ui=False)
+        print(f"Tild: {result['response']}\n")
 
 
 if __name__ == "__main__":

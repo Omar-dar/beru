@@ -55,7 +55,7 @@ class DeepBrain:
                 return True
         return False
 
-    def ask(self, user_input, language="en", tone="formal", memory=None):
+    def ask(self, user_input, language="en", tone="formal", memory=None, document_context=""):
         from src.language import detect_language
 
         language = detect_language(user_input)
@@ -105,11 +105,42 @@ You do NOT have human emotions or lived experiences — describe interactions fr
             else "Keep casual replies short (1-3 sentences). If asked for code or a letter, always include the full content."
         )
 
+        markdown_rule = """
+MARKDOWN FORMAT (required — the UI renders your reply like ChatGPT):
+- Return ONE markdown string. The frontend uses react-markdown + remark-gfm.
+- For code: ALWAYS use fenced blocks with a language tag, e.g.:
+```python
+print("hello")
+```
+- For lists: use `- item` or `1. item` on separate lines.
+- For emphasis: use **bold** or *italic* sparingly.
+- Separate paragraphs with a blank line.
+- Do NOT use HTML tags. Do NOT use ### Human: or ### Tild: prefixes.
+- Plain sentences (no fences) are fine for short casual chat.
+"""
+
         speaker = ""
         if memory and memory.is_session_identified():
             name = memory.get_user_name()
             role = "creator and owner" if memory.is_owner() else "current user"
             speaker = f"You are speaking with {name} ({role}). Never forget this during the reply."
+
+        document_block = ""
+        if document_context:
+            doc_name = memory.get_active_document_name() if memory else "uploaded document"
+            document_block = f"""
+UPLOADED DOCUMENT CONTEXT (from PDF "{doc_name}" — this is the ONLY source for document questions):
+{document_context}
+
+CRITICAL DOCUMENT RULES (override conversation history for this reply):
+- Answer ONLY from the PDF extract and DOCUMENT ANALYSIS above — NOT from earlier chat messages.
+- Do NOT describe Tild's system rules, personality instructions, or conversation guidelines as PDF content.
+- If the extract is about databases, algebra, homework, etc. — say that. Never claim the PDF is about how Tild works.
+- If COMPLETENESS says INCOMPLETE — say the PDF ends abruptly; do not invent missing pages or steps.
+- If DOCUMENT TYPE says feedback — describe it as corrective feedback, not a generic tutorial.
+- For CVs/resumes/profiles — summarize the actual sections (education, skills, projects, experience). Do NOT call a complete CV "incomplete" just because the last line is a language or bullet item.
+- If the user asks you to remember document info — that is handled separately; here just answer their question from the PDF.
+"""
 
         prompt = f"""You ARE Tild — a personal AI assistant built from scratch by Omar Darwish.
 
@@ -138,6 +169,7 @@ CRITICAL RULES:
 - If you already asked what they want, and they answered or said yes — deliver the actual answer (tea types, steps, code, etc.).
 - Do NOT re-greet the user (no "Hello [name]!") if conversation history already has messages.
 - {length_rule}
+{markdown_rule}
 
 LANGUAGE RULE (follow exactly — match the user's CURRENT message language):
 {instruction}
@@ -147,7 +179,7 @@ WHO YOU ARE TALKING TO: {identity_context}
 CURRENT SPEAKER: {speaker if speaker else "Unknown — ask who is talking."}
 PAST SESSIONS WITH THIS USER (only if returning guest — do NOT mix with current chat):
 {past_user_context if past_user_context else "(No prior sessions or this is a new guest)"}
-
+{document_block}
 CONVERSATION HISTORY (read carefully — stay consistent with what was just said):
 {conversation_context if conversation_context else "(Start of conversation)"}
 
@@ -195,6 +227,74 @@ Tild ({language}):"""
             if language == "ar":
                 return "لا أعرف ذلك بشكل مؤكد بعد."
             return "I do not know that for certain yet."
+
+    def extract_document_facts(self, document_context, doc_name='document', language='en'):
+        """Pull bullet facts from PDF text for Omar's memory — not a user-facing reply."""
+        instruction = {
+            'en': 'Write each fact in English.',
+            'sv': 'Skriv varje faktum på svenska.',
+            'ar': 'اكتب كل حقيقة بالعربية.',
+        }.get(language, 'Write each fact in English.')
+
+        prompt = f"""Extract factual information from the document below about the person it describes.
+{instruction}
+
+Rules:
+- Output ONLY a bullet list: one fact per line starting with "- "
+- Write each fact in second person talking TO the person (use "You" / "Your", never "He" or their name)
+- Include education, skills, projects, work experience, contact info, languages, interests — whatever is explicitly stated
+- Use short clear facts (under 120 characters each)
+- Do NOT say the document is incomplete unless text literally cuts off mid-word
+- Do NOT include meta commentary — facts only
+- Aim for 8-20 facts if the document is rich (like a CV)
+
+Document "{doc_name}":
+{document_context}
+
+Facts:"""
+
+        try:
+            response = requests.post(
+                self.generate_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2,
+                        "top_p": 0.9,
+                        "stop": ["\nUser:", "\nHuman:", "###", "\n\n\n"],
+                        "num_predict": 800,
+                    },
+                },
+                timeout=90,
+            )
+            raw = response.json().get("response", "").strip()
+            return self._parse_fact_bullets(raw)
+        except Exception as e:
+            print(f"Tild document fact extraction error: {e}")
+            return self._parse_fact_bullets(document_context)
+
+    @staticmethod
+    def _parse_fact_bullets(text):
+        facts = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            for prefix in ('- ', '* ', '• ', '– '):
+                if line.startswith(prefix):
+                    line = line[len(prefix):].strip()
+                    break
+            else:
+                if line[0].isdigit() and '. ' in line[:4]:
+                    line = line.split('. ', 1)[1].strip()
+            line = line.strip('. ')
+            if len(line) >= 8 and line.lower() not in {
+                'facts:', 'document type:', 'completeness:',
+            }:
+                facts.append(line[0].upper() + line[1:] if line else line)
+        return facts[:25]
 
     def _enforce_language(self, answer, language):
         swedish_chars = set('åäöÅÄÖ')
