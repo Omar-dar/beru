@@ -341,6 +341,9 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
     if memory.is_casual_conversation_reply(user_input):
         return memory.answer_casual_reply(language)
 
+    if memory.is_tild_experience_question(user_input):
+        return memory.answer_tild_experience_question(language)
+
     # Permanent knowledge — Tild identity and Omar facts
     knowledge_answer = memory.answer_from_knowledge(user_input, language)
     if knowledge_answer:

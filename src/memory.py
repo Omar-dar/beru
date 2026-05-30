@@ -1187,6 +1187,12 @@ class TildMemory:
             return True
         return False
 
+    def is_tild_experience_question(self, text):
+        return self.knowledge.is_tild_experience_question(text)
+
+    def answer_tild_experience_question(self, language='en'):
+        return self.knowledge.answer_tild_experience_question('', language, memory=self)
+
     def is_asking_about_other_person(self, text):
         if self.is_owner():
             return False
@@ -1565,6 +1571,11 @@ class TildMemory:
         return "Who do you mean? Tell me their full name and I will check my memory."
 
     def answer_from_knowledge(self, user_input, language='en'):
+        if self.knowledge.is_tild_experience_question(user_input):
+            return self.knowledge.answer_tild_experience_question(
+                user_input, language, memory=self
+            )
+
         if self.knowledge.is_tild_self_question(user_input):
             answer = self.knowledge.answer_tild_self_question(user_input, language)
             if answer:

@@ -39,6 +39,17 @@ TILD_SELF_TRIGGERS = [
     'berätta om dig', 'hur fungerar du', 'what is tild',
 ]
 
+TILD_EXPERIENCE_TRIGGERS = [
+    'did you have fun', 'had fun', 'have fun today', 'have fun', 'enjoy today',
+    'did you enjoy', 'do you feel', 'how do you feel', 'are you happy',
+    'did you like talking', 'was it fun', 'did you have a good day',
+    'do you have feelings', 'do you have emotions', 'did you feel',
+    'personal experience', 'did you enjoy talking', 'enjoyed talking',
+    'good conversation', 'how was your day', 'how has your day',
+    'har du haft kul', 'hade du roligt', 'känner du', 'har du känslor',
+    'hur mår du', 'roligt idag',
+]
+
 SEARCH_BLOCK_TRIGGERS = OMAR_PERSONAL_TRIGGERS + TILD_SELF_TRIGGERS + [
     'do you know me', 'do you know who i am', 'what is my name', 'who am i',
 ]
@@ -102,6 +113,10 @@ class TildKnowledge:
     def is_tild_self_question(self, text):
         text_lower = text.lower()
         return any(trigger in text_lower for trigger in TILD_SELF_TRIGGERS)
+
+    def is_tild_experience_question(self, text):
+        text_lower = text.lower()
+        return any(trigger in text_lower for trigger in TILD_EXPERIENCE_TRIGGERS)
 
     def should_block_search(self, text, is_owner=False):
         text_lower = text.lower()
@@ -231,6 +246,49 @@ class TildKnowledge:
         if facts:
             return facts[0]
         return None
+
+    def answer_tild_experience_question(self, text, language='en', memory=None):
+        """Honest answer — no claimed human feelings; optional memory facts."""
+        activity = ''
+        if memory:
+            from datetime import date
+            today = date.today().isoformat()
+            guests = memory.get_all_guest_users() if hasattr(memory, 'get_all_guest_users') else []
+            today_names = [
+                u['full_name'] for _, u in guests
+                if (u.get('last_seen') or '')[:10] == today
+            ]
+            if today_names:
+                if language == 'sv':
+                    activity = f' I minnet interagerade jag idag med: {", ".join(today_names)}.'
+                elif language == 'ar':
+                    activity = f' في ذاكرتي، تفاعلت اليوم مع: {", ".join(today_names)}.'
+                else:
+                    activity = f' In my memory, I interacted today with: {", ".join(today_names)}.'
+
+        if language == 'sv':
+            return (
+                'Jag upplever inte känslor, glädje eller "kul" som en människa — jag är en AI-assistent. '
+                'Jag bearbetar samtal och sparar information i minnet för att hjälpa användare.'
+                + activity
+            )
+        if language == 'ar':
+            return (
+                'لا أختبر المشاعر أو المتعة كالبشر — أنا مساعد ذكاء اصطناعي. '
+                'أعالج المحادثات وأحفظ المعلومات في الذاكرة لمساعدة المستخدمين.'
+                + activity
+            )
+        if memory and memory.is_owner():
+            return (
+                'I do not experience fun, emotions, or personal feelings the way you do bro — I am an AI. '
+                'I process conversations and store what happens in memory to help people.'
+                + activity
+            )
+        return (
+            'I do not experience fun, emotions, or personal feelings the way humans do. '
+            'I am an AI assistant. I process conversations and store information in memory to help users.'
+            + activity
+        )
 
     def dont_know_response(self, language='en', about='that'):
         if language == 'sv':

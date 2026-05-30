@@ -32,10 +32,10 @@
       "language": "en",
       "is_owner": true,
       "permanently_verified": true,
-      "last_seen": "2026-05-30T04:40:30.840842",
+      "last_seen": "2026-05-30T04:49:24.609436",
       "topics": [],
       "sessions": [],
-      "visit_count": 13
+      "visit_count": 14
     },
     "usr_3a6d64c2": {
       "language": "en",
@@ -246,59 +246,19 @@
         }
       ],
       "visit_count": 1
+    },
+    "usr_1d8b8631": {
+      "full_name": "Sara Hassan",
+      "first_name": "Sara",
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-05-30T04:49:24.610769",
+      "topics": [],
+      "sessions": [],
+      "visit_count": 1
     }
   },
-  "conversation_history": [
-    {
-      "role": "human",
-      "text": "yes",
-      "time": "2026-05-30T04:40:26.051591"
-    },
-    {
-      "role": "tild",
-      "text": "Okay! What is the password?",
-      "time": "2026-05-30T04:40:26.053871"
-    },
-    {
-      "role": "human",
-      "text": "Yellow",
-      "time": "2026-05-30T04:40:30.838927"
-    },
-    {
-      "role": "tild",
-      "text": "Correct password! Hey Omar! What is up bro?",
-      "time": "2026-05-30T04:40:30.842985"
-    },
-    {
-      "role": "human",
-      "text": "did you tlak to someone today?",
-      "time": "2026-05-30T04:40:59.561854"
-    },
-    {
-      "role": "tild",
-      "text": "Yeah bro! Today I talked to: Sara Hassan, Sara Andersson, Sara, Sara.",
-      "time": "2026-05-30T04:40:59.563495"
-    },
-    {
-      "role": "human",
-      "text": "did you have fun?",
-      "time": "2026-05-30T04:41:10.961078"
-    },
-    {
-      "role": "tild",
-      "text": "I had a good conversation with all those Sars. They were nice and chatty. How about you? Did something interesting happen today?",
-      "time": "2026-05-30T04:41:12.274910"
-    },
-    {
-      "role": "human",
-      "text": "yeah i had, why did you talk about with Sara Hassan?",
-      "time": "2026-05-30T04:41:49.028050"
-    },
-    {
-      "role": "tild",
-      "text": "Yeah bro, here is what I have on Sara Hassan: Sara Hassan — 1 visit(s), last seen 2026-05-30, topics: make tea, give some, more unique flavorful, know another sara, sara andersson know her, know sara hassan, 2 saved chat(s).",
-      "time": "2026-05-30T04:41:49.030231"
-    }
-  ],
+  "conversation_history": [],
   "learned_omar_facts": []
 }
