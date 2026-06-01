@@ -1,5 +1,4 @@
 import os
-import whisper
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
@@ -9,14 +8,25 @@ from dotenv import load_dotenv
 
 from src.pipeline import TildPipeline
 from src.language import detect_language
+from src.voice import synthesize_speech, transcribe_file
 
 load_dotenv()
 
 
 def speak(text, language="en"):
     print(f"Tild: {text}")
-    voice = "Alva" if language == "sv" else "Samantha"
-    subprocess.run(["say", "-v", voice, text])
+    audio_bytes, mime = synthesize_speech(text, language)
+    suffix = '.mp3' if 'mpeg' in mime else '.wav'
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+        f.write(audio_bytes)
+        path = f.name
+    try:
+        if os.path.exists('/usr/bin/afplay'):
+            subprocess.run(['afplay', path], check=False)
+        else:
+            subprocess.run(['ffplay', '-nodisp', '-autoexit', path], check=False)
+    finally:
+        os.unlink(path)
 
 
 def record_audio(duration=7, sample_rate=16000, silence_threshold=0.01, silence_duration=1.5):
@@ -57,14 +67,14 @@ def record_audio(duration=7, sample_rate=16000, silence_threshold=0.01, silence_
     return audio, sample_rate
 
 
-def transcribe_audio(audio, sample_rate, whisper_model):
+def transcribe_audio(audio, sample_rate, language_hint=None):
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         temp_path = f.name
         sf.write(temp_path, audio, sample_rate)
 
-    result = whisper_model.transcribe(temp_path, task="transcribe")
+    result = transcribe_file(temp_path, language_hint=language_hint)
+    text = result["text"]
     detected_language = result["language"]
-    text = result["text"].strip()
     print(f"Detected language: {detected_language}")
     os.unlink(temp_path)
     return text, detected_language
@@ -73,8 +83,9 @@ def transcribe_audio(audio, sample_rate, whisper_model):
 def voice_chat():
     pipeline = TildPipeline()
 
-    print("Loading Whisper...")
-    whisper_model = whisper.load_model("small", device="cpu")
+    print("Loading speech recognition (first use may download the model)...")
+    from src.voice import _get_stt_model
+    _get_stt_model()
 
     greeting = pipeline.start_session(clear_history=False)
     print(f"\nTild: {greeting}")
@@ -90,7 +101,7 @@ def voice_chat():
             break
 
         audio, sample_rate = record_audio()
-        text, whisper_language = transcribe_audio(audio, sample_rate, whisper_model)
+        text, whisper_language = transcribe_audio(audio, sample_rate)
 
         if not text or len(text.split()) < 2:
             speak("I did not hear you clearly. Please try again!")
