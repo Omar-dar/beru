@@ -6,6 +6,23 @@ import uuid
 from datetime import datetime
 
 from src.knowledge import TildKnowledge, OWNER_NAME, OWNER_FULL_NAME
+from src.omar_facts import (
+    fact_text,
+    facts_on_date,
+    format_event_date,
+    format_now,
+    format_timestamp,
+    new_fact_entry,
+    owner_fact_for_reply,
+    normalize_fact_entries,
+    update_facts_event_date,
+)
+from src.relative_dates import (
+    format_date_for_language,
+    infer_event_date_from_text,
+    parse_date_clarification,
+    resolve_relative_phrase,
+)
 
 IDENTITY_TRIGGERS = [
     'do you know who i am', 'do you know me', 'you know who i am',
@@ -114,6 +131,46 @@ OMAR_FORGET_TRIGGERS = [
     'glöm det', 'glöm detta', 'glöm det där', 'ta bort det',
 ]
 
+CONVERSATION_PARTNER_TRIGGERS = [
+    'vem pratar du med', 'vem talar du med', 'who are you talking to',
+    'who are you talking with', 'who are you speaking to', 'who are you speaking with',
+    'who is this conversation with', 'vem är det du pratar med',
+]
+
+DATE_CLARIFICATION_TRIGGERS = [
+    'when i say', 'när jag säger', 'i mean the', 'jag menar den',
+    'not today', 'inte idag', 'wrong date', 'fel datum',
+    'menar alltså', 'that was on', 'det var den', 'happened on',
+]
+
+TODAY_ACTIVITY_QUESTION_TRIGGERS = [
+    'vad gjorde jag idag', 'what did i do today', 'what have i done today',
+    'vad har jag gjort idag', 'what did you do today',
+    'vet du vad jag gjorde', 'vet du vad jag gjort', 'vet du vad jag har gjort',
+    'do you know what i did', 'know what i did today',
+]
+
+OWNER_TODAY_TRIGGERS = TODAY_ACTIVITY_QUESTION_TRIGGERS
+
+OWNER_TODAY_NARRATION_VERBS = (
+    'chillade', 'gick', 'åt', 'tränade', 'körd', 'körde', 'jobbade', 'pluggade',
+    'vaknade', 'sov', 'träffade', 'spelade', 'tittade', 'lyssnade', 'städade',
+    'lagade', 'handlade', 'promenerade', 'cyblade', 'simmade', 'duschade',
+    'went', 'ate', 'walked', 'studied', 'worked', 'trained', 'chilled',
+    'gym', 'gymmet', 'träning', 'cardio', 'lunch', 'middag', 'frukost',
+)
+
+OWNER_PROFILE_SHORT_TRIGGERS = [
+    'berätta kort', 'tell me briefly', 'short summary', 'kort vad du vet',
+    'vad du vet om mig', 'what you know about me',
+]
+
+TIME_QUESTION_TRIGGERS = [
+    'what time is it', 'whats the time', 'what is the time',
+    'vad är klockan', 'hur mycket är klockan', 'what day is it',
+    'vilken dag är det', 'what is today', 'vad är det för datum',
+]
+
 OMAR_RECALL_INSTRUCTIONS_TRIGGERS = [
     'what did i tell you to remember', 'what do you remember i told',
     'what instructions did i give', 'what did i ask you to remember',
@@ -157,6 +214,8 @@ class TildMemory:
             'pending_full_name': None,
             'active_document_id': None,
             'active_document_name': None,
+            'prompted_today_story': False,
+            'today_story_logged': False,
         }
 
     def _load_memory(self):
@@ -166,7 +225,9 @@ class TildMemory:
                 self.corrections = data.get('corrections', [])
                 self.known_users = data.get('known_users', {})
                 self.conversation_history = data.get('conversation_history', [])
-                self.learned_omar_facts = data.get('learned_omar_facts', [])
+                self.learned_omar_facts = normalize_fact_entries(
+                    data.get('learned_omar_facts', [])
+                )
                 self.knowledge.set_learned_facts(self.learned_omar_facts)
 
                 # Migrate old single-user format
@@ -207,7 +268,7 @@ class TildMemory:
         return self.known_users.get(OWNER_NAME, {}).get('is_owner', False)
 
     def start_session(self, clear_history=True):
-        """Start fresh session — ask Omar to confirm if he was verified before."""
+        """Start fresh session  -  ask Omar to confirm if he was verified before."""
         prev_doc_id = self.session.get('active_document_id')
         prev_doc_name = self.session.get('active_document_name')
         if clear_history:
@@ -758,13 +819,13 @@ class TildMemory:
         name = self.get_user_full_name() or self.get_user_name()
         if self.is_owner():
             base = (
-                f"You are talking directly to {OWNER_FULL_NAME} — your creator, owner, and best friend. "
+                f"You are talking directly to {OWNER_FULL_NAME}  -  your creator, owner, and best friend. "
                 f"He built you from scratch using Python and PyTorch. "
-                f"Always use 'you' when speaking to him — NEVER refer to Omar in the third person. "
+                f"Always use 'you' when speaking to him  -  NEVER refer to Omar in the third person. "
                 f"It is {OWNER_NAME} speaking to you right now. Talk to him like a close bro."
             )
             if self.learned_omar_facts:
-                instructions = '; '.join(self.learned_omar_facts)
+                instructions = '; '.join(fact_text(f) for f in self.learned_omar_facts)
                 base += (
                     f"\n\nIMPORTANT instructions Omar told you to always remember and follow: {instructions}"
                 )
@@ -773,7 +834,7 @@ class TildMemory:
         past = self.get_user_past_context()
         base = (
             f"You are talking to {name}. "
-            f"Remember who you are speaking with — it is {name}. "
+            f"Remember who you are speaking with  -  it is {name}. "
             f"Be polite, helpful, and formal. Use their name naturally."
         )
         if past:
@@ -866,16 +927,16 @@ class TildMemory:
         previous = count - 1
         if language == 'sv':
             return (
-                f"Ja {full_name}! Vi har pratat {count} gånger totalt — "
+                f"Ja {full_name}! Vi har pratat {count} gånger totalt  -  "
                 f"du har varit här {previous} gång{'er' if previous != 1 else ''} förut."
             )
         if language == 'ar':
             return (
-                f"نعم {full_name}! تحدثنا {count} مرات في المجموع — "
+                f"نعم {full_name}! تحدثنا {count} مرات في المجموع  -  "
                 f"عدت {previous} مرة{'ات' if previous != 1 else ''} من قبل."
             )
         return (
-            f"Yes {full_name}! We have talked {count} times in total — "
+            f"Yes {full_name}! We have talked {count} times in total  -  "
             f"you have been here {previous} time{'s' if previous != 1 else ''} before this visit."
         )
 
@@ -904,7 +965,7 @@ class TildMemory:
         return (
             f'I save your full name ({full_name}), what we talk about, and past conversations '
             f'in my internal memory file. When you come back, I recognize you by your full name '
-            f'and remember topics from before — not just this chat window.'
+            f'and remember topics from before  -  not just this chat window.'
         )
 
     def answer_trust_question(self, language='en'):
@@ -992,14 +1053,32 @@ class TildMemory:
                 return answer
         return None
 
-    def add_omar_fact(self, fact):
-        fact = fact.strip().strip('. ,;')
-        if not fact or fact in self.learned_omar_facts:
+    def add_omar_fact(self, fact, *, event_date=None):
+        if isinstance(fact, dict):
+            entry = fact
+            text = fact_text(entry)
+        else:
+            text = (fact or '').strip().strip('. ,;')
+            if not text:
+                return False
+            entry = new_fact_entry(text)
+            if event_date:
+                entry['event_date'] = event_date
+
+        text = fact_text(entry)
+        if not text:
             return False
-        self.learned_omar_facts.append(fact)
+        for existing in self.learned_omar_facts:
+            if fact_text(existing).lower() == text.lower():
+                if event_date and isinstance(existing, dict):
+                    existing['event_date'] = event_date
+                    self.save_memory()
+                return False
+
+        self.learned_omar_facts.append(entry)
         self.knowledge.set_learned_facts(self.learned_omar_facts)
         self.save_memory()
-        print(f"Tild remembered from Omar: {fact}")
+        print(f"Tild remembered from Omar: {text}")
         return True
 
     def is_omar_remember_instruction(self, text):
@@ -1075,7 +1154,7 @@ class TildMemory:
         hint_words = set(re.findall(r'\w+', hint.lower())) - TOPIC_STOPWORDS
         removed, kept = [], []
         for fact in self.learned_omar_facts:
-            fact_lower = fact.lower()
+            fact_lower = fact_text(fact).lower()
             fact_words = set(re.findall(r'\w+', fact_lower)) - TOPIC_STOPWORDS
             overlap = hint_words.intersection(fact_words)
             if hint.lower() in fact_lower or (
@@ -1101,12 +1180,41 @@ class TildMemory:
                 return 'Vad ska jag komma ihåg bro? Säg det tydligt så sparar jag det.'
             return 'What should I remember bro? Say it clearly and I will save it.'
 
-        self.add_omar_fact(fact)
+        entry = new_fact_entry(fact)
+        self.add_omar_fact(entry)
+        reply_fact = owner_fact_for_reply(fact, language)
+        when = format_event_date(entry, language)
+        when_part = ''
+        fact_lower = fact.lower()
+        has_date_in_fact = bool(
+            re.search(
+                r'\d{1,2}\s*(jan|feb|mar|apr|maj|may|jun|jul|aug|sep|okt|oct|nov|dec)',
+                fact_lower,
+            )
+            or re.search(r'20\d{2}-\d{2}-\d{2}', fact_lower)
+        )
+        if when and not has_date_in_fact:
+            if language == 'sv':
+                when_part = f' den {when}'
+            elif language == 'ar':
+                when_part = f' في {when}'
+            else:
+                when_part = f' on {when}'
+
         if language == 'sv':
-            return f'Jag kommer ihåg det bro! Sparat: {fact}'
+            return (
+                f'Jag kommer ihåg det bro! {reply_fact}{when_part}. '
+                f'Jag har sparat det i minnet.'
+            )
         if language == 'ar':
-            return f'حسناً! سأتذكر ذلك: {fact}'
-        return f'Got it bro! I will remember that: {fact}'
+            return (
+                f'حسناً! {reply_fact}{when_part}. '
+                f'حفظته في ذاكرتي.'
+            )
+        return (
+            f'I remember that bro! {reply_fact}{when_part}. '
+            f'I have saved it in my memory.'
+        )
 
     def remember_facts_from_document(self, brain, index, doc_id, language='en'):
         """Extract facts from the active PDF and save them for Omar."""
@@ -1180,14 +1288,15 @@ class TildMemory:
         removed = self.remove_omar_facts_matching(hint)
         if not removed:
             if language == 'sv':
-                return 'Det fanns inget att glömma bro — inget sparat matchade det.'
-            return 'Nothing to forget bro — no saved instruction matched that.'
+                return 'Det fanns inget att glömma bro  -  inget sparat matchade det.'
+            return 'Nothing to forget bro  -  no saved instruction matched that.'
 
+        removed_text = [fact_text(r) for r in removed]
         if language == 'sv':
-            return f'Okej bro, jag glömde det: {"; ".join(removed)}'
+            return f'Okej bro, jag glömde det: {"; ".join(removed_text)}'
         if language == 'ar':
-            return f'حسناً، نسيت: {"; ".join(removed)}'
-        return f'Okay bro, I forgot that: {"; ".join(removed)}'
+            return f'حسناً، نسيت: {"; ".join(removed_text)}'
+        return f'Okay bro, I forgot that: {"; ".join(removed_text)}'
 
     def answer_omar_recall_instructions(self, language='en'):
         return self.knowledge.format_omar_recall_for_owner(
@@ -1202,7 +1311,7 @@ class TildMemory:
         )
 
     def is_casual_conversation_reply(self, text):
-        """Short replies to Tild's question/offer — not factual questions."""
+        """Short replies to Tild's question/offer  -  not factual questions."""
         if not self.is_session_identified():
             return False
 
@@ -1405,7 +1514,7 @@ class TildMemory:
         last_seen = (user.get('last_seen') or '')[:10]
         topics = user.get('topics', [])
         session_count = len(user.get('sessions', []))
-        line = f"{full_name} — {visits} visit(s)"
+        line = f"{full_name}  -  {visits} visit(s)"
         if last_seen:
             line += f", last seen {last_seen}"
         if topics:
@@ -1417,7 +1526,7 @@ class TildMemory:
     def answer_owner_users_question(self, text, language='en'):
         text_lower = text.lower()
 
-        # "who is this friend?" — means a guest user, NOT Wikipedia
+        # "who is this friend?"  -  means a guest user, NOT Wikipedia
         if any(p in text_lower for p in (
             'who is this friend', 'who was this friend', 'who is that friend',
             'who was the friend', 'who is that person', 'who were they',
@@ -1425,17 +1534,17 @@ class TildMemory:
             guests = self.get_all_guest_users()
             if not guests:
                 if language == 'sv':
-                    return 'Ingen "vän" bro — jag har inte pratat med någon gäst ännu, bara dig.'
-                return 'No "friend" bro — I have not chatted with any guests yet, just you.'
+                    return 'Ingen "vän" bro  -  jag har inte pratat med någon gäst ännu, bara dig.'
+                return 'No "friend" bro  -  I have not chatted with any guests yet, just you.'
             uid, user = guests[0]
             detail = self._format_user_for_owner(uid, user)
             if language == 'sv':
                 return (
-                    f'Inte en kändis bro — jag menar någon från mitt minne. '
+                    f'Inte en kändis bro  -  jag menar någon från mitt minne. '
                     f'Senast pratade jag med {user["full_name"]}. {detail}'
                 )
             return (
-                f'Not a celebrity bro — I mean someone from my user memory. '
+                f'Not a celebrity bro  -  I mean someone from my user memory. '
                 f'Most recently I talked to {user["full_name"]}. {detail}'
             )
 
@@ -1483,8 +1592,8 @@ class TildMemory:
                     return f'Ja bro! Idag pratade jag med: {names}.'
                 return f'Yeah bro! Today I talked to: {names}.'
             if language == 'sv':
-                return 'Inga gästchattar idag bro — bara du just nu i den här sessionen.'
-            return 'No guest chats today bro — just you in this session right now.'
+                return 'Inga gästchattar idag bro  -  bara du just nu i den här sessionen.'
+            return 'No guest chats today bro  -  just you in this session right now.'
 
         name = self._extract_person_name_from_query(text)
         if name:
@@ -1502,8 +1611,8 @@ class TildMemory:
         guests = self.get_all_guest_users()
         if not guests:
             if language == 'sv':
-                return 'Nä bro, inga andra användare ännu — bara du!'
-            return 'Nah bro, no other users yet — just you so far!'
+                return 'Nä bro, inga andra användare ännu  -  bara du!'
+            return 'Nah bro, no other users yet  -  just you so far!'
 
         total = len(guests)
         want_full = self.is_owner_users_full_list_request(text)
@@ -1530,7 +1639,7 @@ class TildMemory:
                 )
             return header + '\n\n' + '\n'.join(f'- {line}' for line in lines) + '\n\n' + footer
 
-        # Default: short summary — recent users only
+        # Default: short summary  -  recent users only
         recent = guests[:OWNER_USERS_SUMMARY_LIMIT]
         lines = [self._format_user_summary(user) for _, user in recent]
         remaining = total - len(recent)
@@ -1583,7 +1692,7 @@ class TildMemory:
         if topics:
             lines.append(f"Topics we have discussed: {', '.join(topics)}.")
         else:
-            lines.append("We are still getting to know each other — I will remember more as we talk.")
+            lines.append("We are still getting to know each other  -  I will remember more as we talk.")
         return ' '.join(lines)
 
     def answer_about_other_person(self, text, language='en'):
@@ -1603,16 +1712,16 @@ class TildMemory:
         if name:
             if self.normalize_full_name(name) == self.normalize_full_name(current_name or ''):
                 if language == 'sv':
-                    return f"Ja — det är du, {current_name}! Det är den person jag pratar med just nu."
-                return f"Yes — that is you, {current_name}! You are the person I am talking to right now."
+                    return f"Ja  -  det är du, {current_name}! Det är den person jag pratar med just nu."
+                return f"Yes  -  that is you, {current_name}! You are the person I am talking to right now."
 
             exact = self.find_users_by_full_name(name)
             if exact:
                 user = self.known_users[exact[0]]
                 if exact[0] == current_id:
                     if language == 'sv':
-                        return f"Ja, det är du — {current_name}!"
-                    return f"Yes, that is you — {current_name}!"
+                        return f"Ja, det är du  -  {current_name}!"
+                    return f"Yes, that is you  -  {current_name}!"
                 brief = self._describe_user_briefly(user, language)
                 if language == 'sv':
                     return f"Ja, jag känner {user['full_name']}. {brief}."
@@ -1624,11 +1733,11 @@ class TildMemory:
                 names = ', '.join(u['full_name'] for _, u in partial)
                 if language == 'sv':
                     return (
-                        f"Ja, jag känner {names} — en annan person än dig ({current_name}). "
+                        f"Ja, jag känner {names}  -  en annan person än dig ({current_name}). "
                         f"Det är inte samma person som du."
                     )
                 return (
-                    f"Yes, I know {names} — a different person from you ({current_name}). "
+                    f"Yes, I know {names}  -  a different person from you ({current_name}). "
                     f"They are not the same person as you."
                 )
 
@@ -1657,6 +1766,382 @@ class TildMemory:
             return "Vem menar du? Säg hela namnet så kollar jag mitt minne."
         return "Who do you mean? Tell me their full name and I will check my memory."
 
+    def is_conversation_partner_question(self, text):
+        text_lower = text.lower()
+        return any(t in text_lower for t in CONVERSATION_PARTNER_TRIGGERS)
+
+    def answer_conversation_partner(self, language='en'):
+        if not self.is_session_identified():
+            return self.ask_to_identify(language)
+        name = self.get_user_full_name() or self.get_user_name()
+        if self.is_owner():
+            if language == 'sv':
+                return (
+                    'Du pratar med mig, Tild! Jag vet att du är Omar, '
+                    'min skapare och bästa kompis.'
+                )
+            if language == 'ar':
+                return (
+                    'أنت تتحدث معي، Tild! أعرف أنك Omar، من أنشأني وأفضل صديق لي.'
+                )
+            return (
+                'You are talking to me, Tild! I know you are Omar, '
+                'my creator and best bro.'
+            )
+        if language == 'sv':
+            return f'Du pratar med mig, Tild! Just nu pratar jag med dig, {name}.'
+        if language == 'ar':
+            return f'أنت تتحدث معي، Tild! أنا أتحدث معك الآن يا {name}.'
+        return f'You are talking to me, Tild! Right now I am talking with you, {name}.'
+
+    def is_date_clarification(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        if any(t in text_lower for t in DATE_CLARIFICATION_TRIGGERS):
+            return True
+        return parse_date_clarification(text) is not None
+
+    def handle_date_clarification(self, text, language='en'):
+        parsed = parse_date_clarification(text)
+        if not parsed:
+            if language == 'sv':
+                return 'Jag fattar inte datumet bro. Säg t.ex. "när jag säger förrgår menar jag den 29 maj".'
+            return 'I did not catch the date bro. Say e.g. "when I say yesterday I mean May 29".'
+
+        keyword = parsed.get('keyword')
+        event_iso = parsed['event_date']
+        hint = 'uppsats' if 'uppsats' in text.lower() or 'thesis' in text.lower() else ''
+        updated = update_facts_event_date(
+            self.learned_omar_facts,
+            event_iso,
+            keyword=keyword,
+            text_hint=hint,
+        )
+        if not updated and self.learned_omar_facts:
+            last = self.learned_omar_facts[-1]
+            if isinstance(last, dict):
+                last['event_date'] = event_iso
+                updated = [last]
+
+        self.knowledge.set_learned_facts(self.learned_omar_facts)
+        self.save_memory()
+
+        when = format_date_for_language(event_iso, language)
+        if language == 'sv':
+            if updated:
+                fact = fact_text(updated[-1])
+                return (
+                    f'Okej bro! Jag sparade att det hände {when}: {fact}. '
+                    f'När du säger relativa datum räknar jag från dagens datum ({format_now("sv")}).'
+                )
+            return f'Okej! Jag noterade datumet {when}.'
+        if updated:
+            fact = fact_text(updated[-1])
+            return f'Got it bro! That happened on {when}: {fact}.'
+        return f'Noted the date: {when}.'
+
+    def is_time_question(self, text):
+        text_lower = text.lower()
+        return any(t in text_lower for t in TIME_QUESTION_TRIGGERS)
+
+    def answer_time_question(self, language='en'):
+        return format_now(language)
+
+    @staticmethod
+    def is_today_activity_question(text):
+        text_lower = text.lower()
+        return any(t in text_lower for t in TODAY_ACTIVITY_QUESTION_TRIGGERS)
+
+    def is_owner_today_question(self, text):
+        return self.is_owner() and self.is_today_activity_question(text)
+
+    def respond_today_question_before_identify(self, language='en'):
+        """User asked about their day before Tild knows who is speaking."""
+        if self.is_awaiting_owner_confirm():
+            if language == 'sv':
+                return (
+                    'Hej bro! Det kan jag kolla, men först: är det du Omar? '
+                    'Säg ja och lösenordet, så vet jag att det är du.'
+                )
+            if language == 'ar':
+                return (
+                    'مرحباً! أستطيع أن أتحقق، لكن أولاً: هل أنت Omar؟ '
+                    'قل نعم وكلمة المرور.'
+                )
+            return (
+                'Hey bro! I can check that, but first: is this you Omar? '
+                'Say yes and your password so I know it is you.'
+            )
+        if language == 'sv':
+            return (
+                'Hej! För att svara på vad du gjort idag behöver jag veta vem du är. '
+                'Är det Omar? Säg ja, eller ditt fullständiga namn.'
+            )
+        if language == 'ar':
+            return 'مرحباً! لأجيب عن يومك أحتاج أعرف من أتحدث معه. هل أنت Omar؟'
+        return (
+            'Hey! To answer what you did today I need to know who you are. '
+            'Is this Omar? Say yes, or tell me your full name.'
+        )
+
+    def is_owner_profile_short_request(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        return any(t in text_lower for t in OWNER_PROFILE_SHORT_TRIGGERS)
+
+    def answer_owner_profile_short(self, language='en'):
+        return self.knowledge.format_omar_profile_summary(
+            language, self.learned_omar_facts
+        )
+
+    def _awaiting_today_story(self):
+        if self.session.get('prompted_today_story'):
+            return True
+        recent = [m for m in self.conversation_history if m.get('role') == 'tild']
+        if not recent:
+            return False
+        last = recent[-1]['text'].lower()
+        markers = (
+            'berättat något för mig som hände just idag',
+            'tell me anything that happened today',
+            'vad har du gjort idag',
+            'what did you do today',
+            'inget sparat om din dag',
+            "don't have anything saved about your day",
+        )
+        return any(m in last for m in markers)
+
+    def _recent_day_chat_context(self):
+        recent = self.conversation_history[-8:]
+        combined = ' '.join(m['text'].lower() for m in recent)
+        return any(w in combined for w in (
+            'ryggpasset', 'rygg och', 'hur kändes', 'vad har du gjort idag',
+            'chill först', 'sparad om din dag', 'bra dag', 'gym idag',
+            'chillat', 'gymmet', 'haft en bra dag',
+        ))
+
+    def is_owner_day_chat_followup(self, text):
+        """Short replies after talking about today's activities (not a new day report)."""
+        if not self.is_owner():
+            return False
+        if not self._recent_day_chat_context() and not self.session.get('today_story_logged'):
+            return False
+
+        tl = text.lower().strip().strip('.!,')
+        followup_markers = (
+            'kändes bra', 'det kändes', 'det var bra', 'felt good', 'felt great',
+            'har ju berättat', 'redan berättat', 'sa jag ju', 'already told',
+            'berättat till dig', 'told you what', 'ska sova', 'god natt',
+            'going to sleep', 'going to bed', 'vad menar du', 'what do you mean',
+            'menar du med', 'lätt och effektiv',
+        )
+        if any(m in tl for m in followup_markers):
+            return True
+        if '?' in tl and any(m in tl for m in ('menar', 'mean', 'vad ', 'what ')):
+            return True
+        if len(tl.split()) <= 6 and any(w in tl for w in ('bra', 'good', 'nice', 'skönt', 'okej', 'ok')):
+            return True
+        return False
+
+    def answer_owner_day_chat_followup(self, text, language='en'):
+        tl = text.lower()
+
+        if any(p in tl for p in ('vad menar', 'menar du', 'what do you mean', 'lätt och effektiv')):
+            if language == 'sv':
+                return (
+                    'Förlåt bro, klumpigt sagt av mig! Jag menade inte "lätt och effektiv" som '
+                    'träningsjargong, bara om ryggpasset kändes bra för dig. Och det lät det ju som!'
+                )
+            return (
+                "Sorry bro, I worded that badly! I didn't mean easy vs hard reps, "
+                "just whether the back session felt good. Sounds like it did!"
+            )
+
+        if any(p in tl for p in ('har ju berättat', 'redan berättat', 'already told', 'sa jag ju', 'berättat till dig')):
+            if any(p in tl for p in ('sova', 'sleep', 'god natt', 'bed')):
+                if language == 'sv':
+                    return (
+                        'Du har helt rätt bro, jag har koll på din dag, chill och gym. '
+                        'Sov gott, vi hörs!'
+                    )
+                return "You're right bro, I've got your day, chill and gym. Sleep well!"
+            if language == 'sv':
+                return 'Stämmer bro, jag minns, chill och gym idag. Något mer innan du chillar?'
+            return "True bro, I remember, chill and gym today. Anything else on your mind?"
+
+        if any(p in tl for p in ('ska sova', 'god natt', 'going to sleep', 'going to bed')):
+            if language == 'sv':
+                return 'Sov gott Omar! Vi hörs imorgon bro.'
+            return 'Sleep well Omar! Catch you tomorrow bro.'
+
+        if any(p in tl for p in ('kändes bra', 'det kändes', 'felt good', 'det var bra')) or (
+            len(tl.split()) <= 5 and 'bra' in tl
+        ):
+            if language == 'sv':
+                return (
+                    'Härligt bro! Kul att rygg och cardio satt bra. '
+                    'Ska du ta det lugnt resten av kvällen?'
+                )
+            return (
+                'Nice bro! Glad the back and cardio felt good. '
+                'Taking it easy for the rest of the evening?'
+            )
+
+        if language == 'sv':
+            return 'Okej bro! Jag är med dig.'
+        return "Got you bro! I'm with you."
+
+    def is_owner_today_narration(self, text):
+        """Owner describing what they did (not a question, not a remember command)."""
+        if not self.is_owner():
+            return False
+        if self.is_omar_remember_instruction(text) or self.is_owner_today_question(text):
+            return False
+        if self.is_date_clarification(text):
+            return False
+        if self.is_owner_day_chat_followup(text):
+            return False
+
+        text_lower = text.lower().strip()
+        narration_blocks = (
+            'har ju berättat', 'redan berättat', 'sa jag ju', 'already told',
+            'ska sova', 'god natt', 'going to sleep', 'vad menar', 'menar du',
+            'kändes bra', 'det kändes', 'det var bra', 'berättat till dig',
+        )
+        if any(b in text_lower for b in narration_blocks):
+            return False
+
+        if '?' in text_lower:
+            return False
+        if not re.search(r'\b(jag|i)\b', text_lower):
+            return False
+
+        question_starts = (
+            'vad ', 'what ', 'hur ', 'how ', 'varför', 'why ', 'när ', 'when ',
+            'vem ', 'who ', 'kan du', 'can you', 'berätta om', 'tell me about',
+        )
+        if any(text_lower.startswith(s) for s in question_starts):
+            return False
+
+        has_today = 'idag' in text_lower or 'today' in text_lower
+        has_activity = any(v in text_lower for v in OWNER_TODAY_NARRATION_VERBS)
+        word_count = len(text_lower.split())
+
+        if self.session.get('today_story_logged'):
+            return has_activity and word_count >= 8 and has_today
+
+        if self._awaiting_today_story() and has_activity and word_count >= 5:
+            return True
+        if has_today and has_activity and word_count >= 6:
+            return True
+        return False
+
+    @staticmethod
+    def _short_day_activity_summary(texts, language='en'):
+        """Brief summary from stored lines without repeating the full message."""
+        combined = ' '.join(texts).lower()
+        parts = []
+        if any(w in combined for w in ('chill', 'chillat', 'chilled', 'koppla av')):
+            parts.append('chillat lite' if language == 'sv' else 'chilled')
+        if any(w in combined for w in ('gym', 'gymmet', 'rygg', 'cardio', 'trän', 'trained')):
+            parts.append('varit på gymmet' if language == 'sv' else 'been to the gym')
+        if any(w in combined for w in ('lunch', 'middag', 'frukost', 'åt', 'ate')):
+            parts.append('ätit' if language == 'sv' else 'eaten')
+        if any(w in combined for w in ('plugg', 'stud', 'jobb', 'work', 'universitet')):
+            parts.append('pluggat/jobbat' if language == 'sv' else 'studied/worked')
+        if parts:
+            if language == 'sv':
+                return ' och '.join(parts)
+            if language == 'ar':
+                return ' و '.join(parts)
+            return ' and '.join(parts)
+        if language == 'sv':
+            return 'haft en del på gång'
+        if language == 'ar':
+            return 'عملت أشياء مختلفة'
+        return 'been busy'
+
+    def _reply_after_today_narration(self, text, language='en'):
+        """Friendly ack + follow-up; fact is saved silently."""
+        tl = text.lower()
+        gym = any(w in tl for w in ('gym', 'gymmet', 'rygg', 'cardio', 'trän', 'trained'))
+        chill = any(w in tl for w in ('chill', 'chillat', 'chilled', 'koppla av'))
+
+        if language == 'sv':
+            if gym and chill:
+                return (
+                    'Härligt bro, låter som en bra dag! Chill först och sen gym. '
+                    'Hur kändes ryggpasset?'
+                )
+            if gym:
+                return 'Nice med gym idag! Hur var passet, nöjd med det?'
+            if chill:
+                return 'Skönt med en chill dag! Gjorde du något mer efteråt?'
+            return 'Okej nice! Berätta mer, hur har dagen varit?'
+
+        if language == 'ar':
+            if gym:
+                return 'حلو! يوم فيه جيم. كيف كان التمرين؟'
+            return 'تمام! كيف كان يومك بشكل عام؟'
+
+        if gym and chill:
+            return (
+                'Nice bro, sounds like a solid day! Chill first then the gym. '
+                'How did the workout feel?'
+            )
+        if gym:
+            return 'Nice, gym day! How was the session?'
+        if chill:
+            return 'Chill day, I like it! Did you do anything else after?'
+        return 'Nice! Tell me more, how has the day been?'
+
+    def handle_owner_today_narration(self, text, language='en'):
+        from datetime import date
+
+        today = date.today().isoformat()
+        cleaned = text.strip().strip('. ,;')
+        if cleaned and cleaned[0].islower():
+            cleaned = cleaned[0].upper() + cleaned[1:]
+
+        entry = new_fact_entry(cleaned)
+        entry['event_date'] = today
+        self.add_omar_fact(entry)
+        self.session['prompted_today_story'] = False
+        self.session['today_story_logged'] = True
+
+        return self._reply_after_today_narration(text, language)
+
+    def answer_owner_today_question(self, language='en'):
+        from datetime import date
+
+        today = date.today().isoformat()
+        matches = facts_on_date(self.learned_omar_facts, today)
+
+        if not matches:
+            self.session['prompted_today_story'] = True
+            if language == 'sv':
+                return (
+                    'Hmm, jag har inget sparat om din dag än bro. '
+                    'Vad har du gjort idag?'
+                )
+            if language == 'ar':
+                return 'ما عندي شي محفوظ عن يومك بعد. شو عملت اليوم؟'
+            return (
+                "Hmm, I don't have anything saved about your day yet bro. "
+                "What did you do today?"
+            )
+
+        self.session['prompted_today_story'] = False
+        lines = [fact_text(m) for m in matches]
+        summary = self._short_day_activity_summary(lines, language)
+        if language == 'sv':
+            return f'Ja bro, du har {summary} idag. Hur kändes det?'
+        if language == 'ar':
+            return f'أيوه، اليوم {summary}. كيف كان شعورك؟'
+        return f'Yeah bro, you {summary} today. How did it feel?'
+
     def answer_from_knowledge(self, user_input, language='en'):
         if self.knowledge.is_tild_activity_question(user_input):
             return self.knowledge.answer_tild_activity_question(
@@ -1669,7 +2154,9 @@ class TildMemory:
             )
 
         if self.knowledge.is_tild_self_question(user_input):
-            answer = self.knowledge.answer_tild_self_question(user_input, language)
+            answer = self.knowledge.answer_tild_self_question(
+                user_input, language, memory=self
+            )
             if answer:
                 return answer
             return self.knowledge.dont_know_response(language, 'that about myself')
@@ -1696,7 +2183,7 @@ class TildMemory:
         print(f"Tild saved {OWNER_NAME} as owner permanently!")
 
     def set_user(self, name, language='en', notes=''):
-        """Legacy helper — prefer register_full_name for guests."""
+        """Legacy helper  -  prefer register_full_name for guests."""
         if ' ' in name.strip():
             status, user_id = self.register_full_name(name, language)
             if status == 'new':

@@ -6,6 +6,7 @@ from src.entities import TildEntityRecognizer
 from src.language import detect_language
 from src.learning import learn_from_exchange
 from src.markdown_format import format_for_ui as apply_ui_format
+from src.text_style import strip_long_dashes
 from src.memory import TildMemory
 from src.rag import TildRAG
 from src.search import TildSearch
@@ -14,7 +15,7 @@ from src.search import TildSearch
 class TildPipeline:
     """Load once, use everywhere — same routing, formatting, and learning."""
 
-    def __init__(self, *, load_model=True):
+    def __init__(self, *, load_model=False):
         print("Loading Tild pipeline...")
         self.rag = TildRAG()
         self.memory = TildMemory()
@@ -29,7 +30,7 @@ class TildPipeline:
 
     def start_session(self, clear_history=True):
         self.memory.start_session(clear_history=clear_history)
-        return self.memory.greeting_for_session()
+        return strip_long_dashes(self.memory.greeting_for_session())
 
     def chat_turn(
         self,
@@ -38,6 +39,7 @@ class TildPipeline:
         new_chat=False,
         format_for_ui=False,
         learn=True,
+        language_hint=None,
     ):
         """
         One full chat turn: store message, route, format, learn, store reply.
@@ -51,7 +53,6 @@ class TildPipeline:
         if new_chat:
             self.memory.start_session(clear_history=True)
 
-        language = detect_language(message)
         tone = self.memory.get_tone()
         self.memory.add_to_conversation('human', message)
 
@@ -63,10 +64,12 @@ class TildPipeline:
             self.search,
             self.ner,
             message,
-            language,
+            language_hint=language_hint,
             brain=self.brain,
         )
+        language = self.memory.session.get('language') or detect_language(message)
 
+        response = strip_long_dashes(response)
         if format_for_ui:
             response = apply_ui_format(response)
 

@@ -50,6 +50,9 @@ def is_creative_task(text, memory=None):
 
 def is_conversational(text, memory=None):
     text_lower = text.lower()
+    if memory and hasattr(memory, 'is_owner_day_chat_followup'):
+        if memory.is_owner_day_chat_followup(text):
+            return False
     if any(t in text_lower for t in CONVERSATIONAL_TRIGGERS):
         return True
     if memory and memory.is_casual_conversation_reply(text):

@@ -2,6 +2,8 @@ import json
 import os
 import re
 
+from src.omar_facts import fact_text, owner_fact_for_reply
+
 OWNER_NAME = 'Omar'
 OWNER_FULL_NAME = 'Omar Darwish'
 
@@ -24,7 +26,8 @@ OWNER_SELF_TRIGGERS = [
     'what do you know about me', 'what do you remember about me',
     'what have you learned about me', 'what did you learn about me',
     'so what did you learn', 'what did you learn',
-    'vad vet du om mig', 'berätta om mig', 'vad har du lärt dig om mig',
+    'vad vet du om mig', 'berätta om mig', 'berätta kort', 'vad du vet om mig',
+    'vad har du lärt dig om mig',
 ]
 
 OMAR_ONLY_TRIGGERS = [
@@ -211,8 +214,14 @@ class TildKnowledge:
             lines.append(f"- Project: {project}")
         for milestone in profile.get('milestones', []):
             lines.append(f"- Milestone: {milestone}")
+        lines.append(
+            "OMAR'S SAVED MEMORIES (things Omar did or told you — NOT your own experiences; "
+            "when speaking to Omar, use YOU for these events, never I):"
+        )
         for learned in (learned_facts or self.learned_omar_facts):
-            lines.append(f"- Learned fact: {learned}")
+            raw = fact_text(learned)
+            lang = 'sv' if re.search(r'\b(jag|min|mig)\b', raw, re.I) else 'en'
+            lines.append(f"- Omar memory: {owner_fact_for_reply(raw, lang)}")
         return '\n'.join(lines)
 
     @staticmethod
@@ -246,13 +255,15 @@ class TildKnowledge:
             (r'\byou works\b', 'you work'),
         ):
             out = re.sub(wrong, right, out, flags=re.I)
+        out = owner_fact_for_reply(out, 'sv' if re.search(r'\b(jag|min|mig)\b', out, re.I) else 'en')
         if out and out[0].islower():
             out = out[0].upper() + out[1:]
         return out
 
     @staticmethod
     def _is_instruction_fact(fact):
-        """Short owner instructions — not CV/document extracts."""
+        """Short owner instructions  -  not CV/document extracts."""
+        fact = fact_text(fact)
         fl = fact.lower()
         if len(fact) > 110:
             return False
@@ -274,10 +285,11 @@ class TildKnowledge:
     def _split_learned_facts(cls, facts):
         instructions, document_facts = [], []
         for fact in facts or []:
+            text = fact_text(fact)
             if cls._is_instruction_fact(fact):
-                instructions.append(fact)
+                instructions.append(text)
             else:
-                document_facts.append(fact)
+                document_facts.append(text)
         return instructions, document_facts
 
     @classmethod
@@ -285,7 +297,7 @@ class TildKnowledge:
         buckets = {key: [] for key in CATEGORY_TOPIC_WORDS if key != 'instructions'}
         buckets['other'] = []
         for fact in facts or []:
-            fl = fact.lower()
+            fl = fact_text(fact).lower()
             placed = False
             for category, keywords in CATEGORY_TOPIC_WORDS.items():
                 if category == 'instructions':
@@ -355,11 +367,11 @@ class TildKnowledge:
         joined = ', '.join(parts)
         if language == 'sv':
             return (
-                f"Från ditt CV har jag sparat {len(document_facts)} saker om dig — "
+                f"Från ditt CV har jag sparat {len(document_facts)} saker om dig  -  "
                 f"främst {joined}."
             )
         return (
-            f"From your CV I've saved {len(document_facts)} things about you — "
+            f"From your CV I've saved {len(document_facts)} things about you  -  "
             f"mainly {joined}."
         )
 
@@ -393,9 +405,9 @@ class TildKnowledge:
         remaining = len(facts) - limit
         if language == 'sv':
             extra = f' Jag har {remaining} till om {labels.get(category, category)}.' if remaining > 0 else ''
-            return f"Okej bro — om din {labels.get(category, category)}: {body}{extra} Vill du ha ännu mer?"
+            return f"Okej bro  -  om din {labels.get(category, category)}: {body}{extra} Vill du ha ännu mer?"
         extra = f' I have {remaining} more on your {labels.get(category, category)}.' if remaining > 0 else ''
-        return f"Sure bro — about your {labels.get(category, category)}: {body}{extra} Want even more?"
+        return f"Sure bro  -  about your {labels.get(category, category)}: {body}{extra} Want even more?"
 
     def _format_guest_category_detail(self, category, learned_facts, guest_name, language='en', limit=3):
         _, document_facts = self._split_learned_facts(learned_facts)
@@ -425,14 +437,14 @@ class TildKnowledge:
         )
 
     def format_omar_profile_summary(self, language='en', learned_facts=None):
-        """Short overview — facts about Omar vs instructions he gave Tild."""
+        """Short overview  -  facts about Omar vs instructions he gave Tild."""
         profile = self.omar_profile
         facts = learned_facts or self.learned_omar_facts
         instructions, document_facts = self._split_learned_facts(facts)
 
         if language == 'sv':
             intro = (
-                f"Du är {profile.get('full_name', OWNER_FULL_NAME)}, min skapare och ägare — "
+                f"Du är {profile.get('full_name', OWNER_FULL_NAME)}, min skapare och ägare  -  "
                 f"du byggde mig från grunden. Du studerar "
                 f"{profile.get('degree', 'Software Engineering')} vid "
                 f"{profile.get('university', 'University of Gothenburg')} och bor i "
@@ -441,7 +453,7 @@ class TildKnowledge:
             offer = DETAIL_OFFER_SV
         else:
             intro = (
-                f"You're {profile.get('full_name', OWNER_FULL_NAME)}, my creator and owner — "
+                f"You're {profile.get('full_name', OWNER_FULL_NAME)}, my creator and owner  -  "
                 f"you built me from scratch. You study "
                 f"{profile.get('degree', 'Software Engineering')} at "
                 f"{profile.get('university', 'University of Gothenburg')} and you're based in "
@@ -470,7 +482,7 @@ class TildKnowledge:
         return ' '.join(parts)
 
     def format_omar_recall_for_owner(self, learned_facts=None, language='en'):
-        """Only what Omar explicitly asked Tild to remember — not CV bio facts."""
+        """Only what Omar explicitly asked Tild to remember  -  not CV bio facts."""
         facts = learned_facts or self.learned_omar_facts
         instructions, _ = self._split_learned_facts(facts)
 
@@ -488,11 +500,11 @@ class TildKnowledge:
         preview = '; '.join(self._to_second_person(f) for f in instructions[:2])
         if language == 'sv':
             return (
-                f'Du har gett mig {len(instructions)} instruktioner bro — t.ex. {preview}. '
+                f'Du har gett mig {len(instructions)} instruktioner bro  -  t.ex. {preview}. '
                 f'Säg "mer om mina instruktioner" om du vill se allt.'
             )
         return (
-            f"You've given me {len(instructions)} instructions bro — e.g. {preview}. "
+            f"You've given me {len(instructions)} instructions bro  -  e.g. {preview}. "
             f'Say "more about my instructions" if you want the full list.'
         )
 
@@ -538,15 +550,16 @@ class TildKnowledge:
                 )
 
         for fact in facts:
-            fact_words = set(re.findall(r'\w+', fact.lower()))
+            ft = fact_text(fact)
+            fact_words = set(re.findall(r'\w+', ft.lower()))
             query_words = set(re.findall(r'\w+', text_lower))
             if len(fact_words.intersection(query_words)) >= 2:
-                return self._to_second_person(fact)
+                return self._to_second_person(ft)
 
         return None
 
     def answer_omar_for_guest(self, text, language='en', guest_name=None):
-        """When someone other than Omar asks who Omar is — brief, offer more."""
+        """When someone other than Omar asks who Omar is  -  brief, offer more."""
         guest = guest_name or 'there'
         profile = self.omar_profile
         category = self.detect_guest_omar_category(text)
@@ -557,7 +570,7 @@ class TildKnowledge:
 
         if language == 'sv':
             return (
-                f"Omar Darwish är min skapare och ägare — han byggde mig från grunden. "
+                f"Omar Darwish är min skapare och ägare  -  han byggde mig från grunden. "
                 f"Han studerar software engineering i Göteborg. "
                 f"{GUEST_DETAIL_OFFER_SV} ({guest})"
             )
@@ -567,32 +580,110 @@ class TildKnowledge:
                 f"سألتُ إن كنت Omar لأنه الوحيد الذي يمكنه تأكيد أنه مالكي. أنت {guest}."
             )
         return (
-            f"Omar Darwish is my creator and owner — he built me from scratch. "
+            f"Omar Darwish is my creator and owner  -  he built me from scratch. "
             f"He's a software engineering student in Gothenburg, Sweden. "
             f"{GUEST_DETAIL_OFFER_EN}"
         )
 
-    def answer_tild_self_question(self, text, language='en'):
+    def answer_tild_self_question(self, text, language='en', memory=None):
         text_lower = text.lower()
         identity = self.tild_identity
         creator = identity.get('creator', OWNER_FULL_NAME)
+        is_owner = memory is not None and memory.is_owner()
 
         if any(k in text_lower for k in ['name', 'heter', 'called']):
+            if is_owner:
+                if language == 'sv':
+                    return 'Jag heter Tild. Du gav mig namnet när du skapade mig.'
+                if language == 'ar':
+                    return 'اسمي Tild. أنت Omar أعطيتني الاسم عندما أنشأتني.'
+                return 'My name is Tild. You gave me that name when you created me.'
+            if language == 'sv':
+                return f'Jag heter Tild. {creator} gav mig namnet när han skapade mig.'
+            if language == 'ar':
+                return f'اسمي Tild. {creator} أعطاني الاسم عندما أنشأني.'
             return f"My name is Tild. {creator} gave me this name when he created me."
+
         if any(k in text_lower for k in ['who built', 'who made', 'who created', 'creator', 'skapade', 'byggde']):
-            return f"{creator} built me completely from scratch using Python and PyTorch. He is my creator and owner."
+            if is_owner:
+                if language == 'sv':
+                    return (
+                        'Du byggde mig från grunden med Python och PyTorch. '
+                        'Du är min skapare och ägare.'
+                    )
+                if language == 'ar':
+                    return (
+                        'أنت بنيتني من الصفر باستخدام Python و PyTorch. '
+                        'أنت من أنشأني ومالكي.'
+                    )
+                return (
+                    'You built me completely from scratch using Python and PyTorch. '
+                    'You are my creator and owner.'
+                )
+            if language == 'sv':
+                return (
+                    f'{creator} byggde mig från grunden med Python och PyTorch. '
+                    f'Han är min skapare och ägare.'
+                )
+            if language == 'ar':
+                return (
+                    f'{creator} بناني من الصفر باستخدام Python و PyTorch. '
+                    f'هو من أنشأني ومالكي.'
+                )
+            return (
+                f'{creator} built me completely from scratch using Python and PyTorch. '
+                f'He is my creator and owner.'
+            )
+
         if any(k in text_lower for k in ['what are you', 'who are you', 'vad är du', 'vem är du']):
             if self.is_tild_activity_question(text):
                 return None
+            if is_owner:
+                if language == 'sv':
+                    return (
+                        'Jag är Tild, din personliga AI. Du byggde mig från grunden. '
+                        'Jag pratar svenska, engelska och arabiska.'
+                    )
+                if language == 'ar':
+                    return (
+                        'أنا Tild، مساعدك الشخصي. أنت بنيتني من الصفر. '
+                        'أتحدث السويدية والإنجليزية والعربية.'
+                    )
+                return (
+                    'I am Tild, your personal AI assistant. You built me from scratch. '
+                    'I speak English, Swedish, and Arabic.'
+                )
+            if language == 'sv':
+                return (
+                    f'Jag är Tild, en personlig AI-assistent som {creator} byggde från grunden. '
+                    f'Jag pratar svenska, engelska och arabiska.'
+                )
+            if language == 'ar':
+                return (
+                    f'أنا Tild، مساعد ذكاء اصطناعي شخصي. {creator} بناني من الصفر. '
+                    f'أتحدث السويدية والإنجليزية والعربية.'
+                )
             return (
-                f"I am Tild, a personal AI assistant built from scratch by {creator}. "
-                f"I speak English, Swedish, and Arabic."
+                f'I am Tild, a personal AI assistant built from scratch by {creator}. '
+                f'I speak English, Swedish, and Arabic.'
             )
+
         if any(k in text_lower for k in ['what can you do', 'capabilities', 'vad kan du']):
+            if language == 'sv':
+                return (
+                    'Jag kan chatta på svenska, engelska och arabiska, minnas personer och samtal, '
+                    'lära av rättelser, söka Wikipedia och väder, analysera text och hjälpa med '
+                    'skrivande, kod, brev med mera.'
+                )
+            if language == 'ar':
+                return (
+                    'أستطيع الدردشة بالسويدية والإنجليزية والعربية، تذكر الأشخاص والمحادثات، '
+                    'التعلم من التصحيحات، البحث في ويكيبيديا والطقس، وتحليل النصوص والمساعدة في الكتابة والبرمجة.'
+                )
             return (
-                "I can chat in English, Swedish, and Arabic, remember people and conversations, "
-                "learn from corrections, search Wikipedia and weather, analyze text, and help with "
-                "writing — code, letters, and more."
+                'I can chat in English, Swedish, and Arabic, remember people and conversations, '
+                'learn from corrections, search Wikipedia and weather, analyze text, and help with '
+                'writing, code, letters, and more.'
             )
 
         facts = identity.get('facts', [])
@@ -601,7 +692,7 @@ class TildKnowledge:
         return None
 
     def answer_tild_activity_question(self, text, language='en', memory=None):
-        """Casual 'what are you doing' — current session context, not identity."""
+        """Casual 'what are you doing'  -  current session context, not identity."""
         if memory and memory.is_owner():
             if language == 'sv':
                 return 'Pratar med dig just nu bro, redo att hjälpa till med vad som helst!'
@@ -636,19 +727,19 @@ class TildKnowledge:
 
         if language == 'sv':
             return (
-                'Jag upplever inte känslor, glädje eller "kul" som en människa — jag är en AI-assistent. '
+                'Jag upplever inte känslor, glädje eller "kul" som en människa  -  jag är en AI-assistent. '
                 'Jag bearbetar samtal och sparar information i minnet för att hjälpa användare.'
                 + activity
             )
         if language == 'ar':
             return (
-                'لا أختبر المشاعر أو المتعة كالبشر — أنا مساعد ذكاء اصطناعي. '
+                'لا أختبر المشاعر أو المتعة كالبشر  -  أنا مساعد ذكاء اصطناعي. '
                 'أعالج المحادثات وأحفظ المعلومات في الذاكرة لمساعدة المستخدمين.'
                 + activity
             )
         if memory and memory.is_owner():
             return (
-                'I do not experience fun, emotions, or personal feelings the way you do bro — I am an AI. '
+                'I do not experience fun, emotions, or personal feelings the way you do bro  -  I am an AI. '
                 'I process conversations and store what happens in memory to help people.'
                 + activity
             )

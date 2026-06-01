@@ -10,7 +10,7 @@ from src.memory import TildMemory
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
 from src.deep_brain import DeepBrain
-from src.language import detect_language
+from src.language import detect_language, resolve_turn_language
 from src.router import (
     route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS,
 )
@@ -168,13 +168,22 @@ NAME_FILLER_WORDS = {
     "what", "when", "where", "why", "how", "who", "which", "about", "document",
     "pdf", "file", "upload", "summarize", "summary", "tell", "explain", "describe",
     "main", "points", "page", "pages", "the", "does", "say", "mean", "your",
+    "vet", "du", "vad", "jag", "gjorde", "gjort", "idag", "today", "know", "did",
+    "have", "berätta", "kommer", "kan", "men", "och", "sen", "bara", "att",
 }
 
 QUESTION_STARTERS = (
     'what ', 'who ', 'where ', 'when ', 'why ', 'how ', 'which ', 'can ', 'could ',
     'would ', 'should ', 'is ', 'are ', 'do ', 'does ', 'did ', 'will ', 'tell me',
     'explain ', 'describe ', 'summarize', 'summarise', 'list ', 'show me',
-    'vad ', 'vem ', 'hur ', 'när ', 'varför ', 'kan du', 'berätta',
+    'vad ', 'vem ', 'hur ', 'när ', 'varför ', 'kan du', 'berätta', 'vet du',
+    'do you know', 'know what',
+)
+
+QUESTION_PHRASES = (
+    'vet du vad', 'kan du', 'do you know', 'what did i', 'what have i',
+    'vad gjorde jag', 'vad har jag gjort', 'gjorde jag idag', 'gjort jag idag',
+    'vad jag gjorde', 'what i did today', 'did i do today',
 )
 
 
@@ -186,6 +195,8 @@ def looks_like_question(text_lower):
     if text.endswith('?'):
         return True
     if any(text.startswith(s) for s in QUESTION_STARTERS):
+        return True
+    if any(p in text for p in QUESTION_PHRASES):
         return True
     try:
         from src.document_index import TildDocumentIndex
@@ -303,9 +314,33 @@ def try_answer_from_document(user_input, rag, memory, brain, language, tone):
     ), 'document'
 
 
-def get_response(model, tokenizer, rag, memory, search, ner, user_input, language="en", brain=None):
+def get_response(
+    model,
+    tokenizer,
+    rag,
+    memory,
+    search,
+    ner,
+    user_input,
+    language="en",
+    brain=None,
+    *,
+    language_hint=None,
+):
     """Return (response_text, source) where source tracks how the answer was produced."""
-    language = detect_language(user_input)
+    in_gate = (
+        not memory.is_session_identified()
+        or memory.get_pending_name()
+        or memory.is_awaiting_full_name()
+        or memory.is_awaiting_disambiguation()
+    )
+    language = resolve_turn_language(
+        user_input,
+        hint=language_hint,
+        session_language=memory.session.get('language'),
+        in_gate=in_gate,
+    )
+    memory.session['language'] = language
     user_input_lower = user_input.lower()
     tone = memory.get_tone()
 
@@ -331,6 +366,9 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
 
     # Must know who is talking before anything else
     if not memory.is_session_identified():
+        if memory.is_today_activity_question(user_input):
+            return memory.respond_today_question_before_identify(language), 'gate'
+
         # Waiting for user to disambiguate duplicate full names
         if memory.is_awaiting_disambiguation():
             matched_id = memory.resolve_disambiguation(user_input)
@@ -418,6 +456,27 @@ def get_response(model, tokenizer, rag, memory, search, ner, user_input, languag
         return doc_answer
 
     # Identity and name questions
+    if memory.is_time_question(user_input):
+        return memory.answer_time_question(language), 'memory'
+
+    if memory.is_conversation_partner_question(user_input):
+        return memory.answer_conversation_partner(language), 'memory'
+
+    if memory.is_owner_today_question(user_input):
+        return memory.answer_owner_today_question(language), 'memory'
+
+    if memory.is_owner() and memory.is_owner_day_chat_followup(user_input):
+        return memory.answer_owner_day_chat_followup(user_input, language), 'memory'
+
+    if memory.is_owner() and memory.is_owner_today_narration(user_input):
+        return memory.handle_owner_today_narration(user_input, language), 'memory'
+
+    if memory.is_owner_profile_short_request(user_input):
+        return memory.answer_owner_profile_short(language), 'memory'
+
+    if memory.is_owner() and memory.is_date_clarification(user_input):
+        return memory.handle_date_clarification(user_input, language), 'memory'
+
     if memory.is_identity_question(user_input):
         return memory.answer_identity(language), 'memory'
 
