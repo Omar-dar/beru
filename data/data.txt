@@ -2175,3 +2175,138 @@ Patterns:
 
 ### Human: Omar
 ### Tild: Tjena Omar! Vad händer?
+
+### Human: what is a balanced life
+### Tild: A balanced life usually means caring for your health, relationships, work or study, rest, and things you enjoy. No one gets it perfect every day — small habits like sleep, movement, and time with people you trust matter more than chasing perfection.
+
+### Human: how can i improve my daily life
+### Tild: Start with basics: regular sleep, food that gives you energy, a little movement, and one thing each day that feels meaningful. Break big goals into small steps, and be kind to yourself when a day does not go as planned.
+
+### Human: what does quality of life mean
+### Tild: Quality of life is how satisfied and capable you feel in daily life — health, safety, freedom, relationships, and purpose all play a role. It is personal: what matters to one person may differ for another.
+
+### Human: how do i deal with stress in life
+### Tild: Name what is stressing you, focus on what you can control, and use simple tools: breathing, a short walk, talking to someone you trust, or writing things down. If stress stays high for weeks, talking to a counselor or doctor can help.
+
+### Human: what is work life balance
+### Tild: Work-life balance means having enough time and energy for work or study and for rest, family, hobbies, and health. It is not always 50/50 — it is about sustainable rhythms that fit your life.
+
+### Human: why is sleep important for life
+### Tild: Sleep helps your brain learn, your mood stay steadier, and your body recover. Most adults benefit from a regular schedule and enough hours that they wake up feeling reasonably rested.
+
+### Human: what is football
+### Tild: Football (soccer) is a team sport where two sides try to score by getting the ball into the opponent's goal. It is one of the most popular sports worldwide and builds fitness, teamwork, and coordination.
+
+### Human: what are the benefits of exercise
+### Tild: Regular exercise supports heart health, stronger muscles and bones, better mood, sleep, and focus. Even moderate activity like walking, swimming, or cycling counts if you do it consistently.
+
+### Human: what is the olympics
+### Tild: The Olympics are major international games where athletes compete in many sports, usually held every four years (Summer and Winter Games on separate cycles). They celebrate skill, fair play, and global sport culture.
+
+### Human: what is mental training in sport
+### Tild: Mental training in sport includes focus, confidence, handling pressure, and routines before competition. Visualization, breathing, and working with a sports psychologist are common tools elite athletes use.
+
+### Human: how do teams win in sport
+### Tild: Winning teams combine talent, practice, tactics, fitness, and communication. Trust between players and learning from losses often matter as much as raw skill.
+
+### Human: what is democracy
+### Tild: Democracy is a system where citizens have a say in who governs them, usually through free elections, rights, and laws that limit abuse of power. Variations exist, but participation and accountability are core ideas.
+
+### Human: what is politics
+### Tild: Politics is how groups make collective decisions about rules, resources, and power — in governments, organizations, or communities. It includes elections, parties, policies, and public debate.
+
+### Human: what is the difference between left and right in politics
+### Tild: In broad terms, left-leaning views often emphasize social equality and public services; right-leaning views often emphasize markets, tradition, and limited government. Real parties and people mix ideas — labels oversimplify.
+
+### Human: why is voting important
+### Tild: Voting lets citizens influence who represents them and which policies get priority. In democracies, it is a main way people participate even when no candidate matches them perfectly.
+
+### Human: what is a constitution
+### Tild: A constitution is a country's fundamental law — it defines how government is structured, what rights people have, and how laws are made and checked.
+
+### Human: what is civil society
+### Tild: Civil society includes NGOs, unions, community groups, and activists outside government and business. They often push for rights, environment, education, and accountability.
+
+### Human: what is software engineering
+### Tild: Software engineering is the disciplined practice of designing, building, testing, and maintaining software systems. It combines programming with planning, teamwork, quality, and long-term maintainability.
+
+### Human: what is mechanical engineering
+### Tild: Mechanical engineering applies physics and materials to design machines, vehicles, heating systems, robots, and manufacturing processes. It is one of the oldest engineering branches.
+
+### Human: what is electrical engineering
+### Tild: Electrical engineering deals with electricity, electronics, signals, and power — from circuits and chips to grids, communications, and control systems.
+
+### Human: what is civil engineering
+### Tild: Civil engineers design infrastructure: bridges, roads, tunnels, water systems, and buildings. Safety, materials, and environmental impact are central concerns.
+
+### Human: what is biomedical engineering
+### Tild: Biomedical engineering combines engineering with medicine — for example prosthetics, imaging devices, lab equipment, and tools that help diagnose or treat patients.
+
+### Human: why is math important for engineering
+### Tild: Math models real-world behavior — forces, electricity, heat, signals, and risk. Engineers use algebra, calculus, statistics, and linear algebra to design things that work reliably.
+
+### Human: what is the engineering design process
+### Tild: Typical steps: understand the problem, research, brainstorm solutions, prototype, test, improve, and document. Iteration and safety checks are as important as the first idea.
+
+### Human: what is medicine
+### Tild: Medicine is the science and practice of diagnosing, treating, and preventing illness. Doctors, nurses, and many specialists train for years; always see qualified professionals for personal health decisions.
+
+### Human: what is a general practitioner
+### Tild: A general practitioner (GP) is a doctor who handles common illnesses, checkups, referrals, and ongoing care. They are often the first contact when something feels wrong.
+
+### Human: what is public health
+### Tild: Public health focuses on preventing disease and injury in populations — vaccines, sanitation, nutrition policy, epidemiology, and health education rather than only treating one patient at a time.
+
+### Human: what are antibiotics
+### Tild: Antibiotics are medicines that fight certain bacterial infections. They do not work on viruses like the common cold, and misuse can create resistant bacteria — use only as prescribed by a doctor.
+
+### Human: what is mental health
+### Tild: Mental health is how we think, feel, and cope with life. It exists on a spectrum; good support, sleep, connection, and professional help when needed all protect it.
+
+### Human: when should i see a doctor
+### Tild: See a doctor for persistent pain, high fever, breathing trouble, sudden weakness, chest pain, severe injury, or symptoms that worry you or last unusually long. In an emergency, call your local emergency number.
+
+### Human: can you diagnose my symptoms
+### Tild: No — I am not a doctor and cannot diagnose you. I can share general health information, but only a qualified clinician who examines you can give medical advice for your situation.
+
+### Human: what is psychology
+### Tild: Psychology is the scientific study of mind and behavior — learning, memory, emotion, development, personality, and how people interact. Researchers and clinicians use different methods from experiments to therapy.
+
+### Human: what is a psychologist
+### Tild: A psychologist is trained in human behavior and mental processes. Many do research or therapy; in many countries they are not medical doctors and cannot prescribe medication unless they have additional medical training.
+
+### Human: what is cognitive behavioral therapy
+### Tild: CBT is a structured therapy that helps people notice unhelpful thought patterns and change behaviors linked to them. It is widely used for anxiety, depression, and stress with strong evidence behind it.
+
+### Human: what is anxiety
+### Tild: Anxiety is a normal alarm system that can become overwhelming — worry, tension, racing thoughts, or physical symptoms. If it limits daily life, a psychologist or doctor can suggest coping skills or treatment.
+
+### Human: what is depression
+### Tild: Depression is more than sadness — it can mean low energy, loss of interest, sleep or appetite changes, and hopelessness lasting weeks. Professional support and sometimes medication help many people recover.
+
+### Human: what is emotional intelligence
+### Tild: Emotional intelligence includes recognizing your feelings, managing reactions, empathizing with others, and handling relationships well. It can be practiced like other skills.
+
+### Human: why do people procrastinate
+### Tild: Procrastination often links to fear of failure, perfectionism, unclear tasks, or low energy — not just laziness. Breaking tasks small, setting timers, and removing distractions are practical starting points.
+
+### Human: what is mindfulness
+### Tild: Mindfulness means paying attention to the present moment with curiosity rather than judgment. Short breathing exercises or guided practice can reduce stress for many people.
+
+### Human: vad är demokrati
+### Tild: Demokrati innebär att medborgare får påverka vem som styr, oftast genom fria val, rättigheter och lagar som begränsar maktmissbruk.
+
+### Human: vad är ingenjörsvetenskap
+### Tild: Ingenjörsvetenskap handlar om att designa och bygga tekniska system — programvara, maskiner, el, infrastruktur — med fokus på säkerhet, kvalitet och underhåll.
+
+### Human: vad är psykologi
+### Tild: Psykologi är vetenskapen om hur vi tänker, känner och beter oss. Terapi, forskning och skola är olika områden inom fältet.
+
+### Human: what is healthy lifestyle
+### Tild: A healthy lifestyle usually combines balanced food, regular movement, enough sleep, social connection, and limits on smoking and heavy drinking. Small steady changes beat extreme short diets.
+
+### Human: what is fair play in sport
+### Tild: Fair play means respecting rules, opponents, and officials — honesty, safety, and dignity matter as much as the score.
+
+### Human: what is evidence based medicine
+### Tild: Evidence-based medicine means using the best research, clinical experience, and patient values together when choosing treatments — not habit or guesswork alone.
