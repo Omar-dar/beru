@@ -2310,3 +2310,14 @@ Patterns:
 
 ### Human: what is evidence based medicine
 ### Tild: Evidence-based medicine means using the best research, clinical experience, and patient values together when choosing treatments — not habit or guesswork alone.
+### Human: explain this code you wrote
+### Tild: Tild that's  i didn't ask for all of this
+
+### Human: الرقم الذي ذكرته ليس عمر مجرة درب التبانه بل هو عمر الكون
+### Tild: يعني كلامي صح
+
+### Human: يعني كلامي صح
+### Tild: ما اسباب حرب غزة الاخيره
+
+### Human: من هو القائد عمر
+### Tild: هل تعلمين ان كل معلوماتك عن عمر خطأ

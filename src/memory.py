@@ -216,14 +216,55 @@ GREETING_WORDS = {
 class TildMemory:
     def __init__(self, memory_path='data/memory.json'):
         self.memory_path = memory_path
-        self.conversation_history = []
+        self._cli_session = self._empty_session()
+        self._cli_conversation_history = []
         self.corrections = []
         self.known_users = {}
         self.learned_omar_facts = []
         self.knowledge = TildKnowledge()
-        self.session = self._empty_session()
+        from src.client_sessions import ClientSessionStore
+
+        self.client_sessions = ClientSessionStore(self)
         self._load_memory()
         self.start_session()
+
+    @property
+    def session(self):
+        from src.client_sessions import get_bound_client_session_id
+
+        sid = get_bound_client_session_id()
+        if sid:
+            return self.client_sessions.get(sid).session
+        return self._cli_session
+
+    @session.setter
+    def session(self, value):
+        from src.client_sessions import get_bound_client_session_id
+
+        sid = get_bound_client_session_id()
+        if sid:
+            self.client_sessions.get(sid).session = value
+        else:
+            self._cli_session = value
+
+    @property
+    def conversation_history(self):
+        from src.client_sessions import get_bound_client_session_id
+
+        sid = get_bound_client_session_id()
+        if sid:
+            return self.client_sessions.get(sid).conversation_history
+        return self._cli_conversation_history
+
+    @conversation_history.setter
+    def conversation_history(self, value):
+        from src.client_sessions import get_bound_client_session_id
+
+        sid = get_bound_client_session_id()
+        if sid:
+            self.client_sessions.get(sid).conversation_history = value
+        else:
+            self._cli_conversation_history = value
 
     def _empty_session(self):
         return {
@@ -252,7 +293,7 @@ class TildMemory:
                 data = json.load(f)
                 self.corrections = data.get('corrections', [])
                 self.known_users = data.get('known_users', {})
-                self.conversation_history = data.get('conversation_history', [])
+                self._cli_conversation_history = data.get('conversation_history', [])
                 self.learned_omar_facts = normalize_fact_entries(
                     data.get('learned_omar_facts', [])
                 )
@@ -282,13 +323,17 @@ class TildMemory:
             print("Tild starting with fresh memory!")
 
     def save_memory(self):
+        from src.client_sessions import get_bound_client_session_id
+
         os.makedirs(os.path.dirname(self.memory_path) or '.', exist_ok=True)
         data = {
             'corrections': self.corrections,
             'known_users': self.known_users,
-            'conversation_history': self.conversation_history,
             'learned_omar_facts': self.learned_omar_facts,
         }
+        # Per-browser API chats keep history in memory only; do not overwrite CLI/json history.
+        if not get_bound_client_session_id():
+            data['conversation_history'] = self._cli_conversation_history
         with open(self.memory_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -502,6 +547,22 @@ class TildMemory:
                 return f"شكراً {partial_first_name}! ما اسمك الكامل؟"
             return f"Thanks {partial_first_name}! What is your full name?"
         return self.ask_to_identify(language)
+
+    def explain_full_name_request(self, language='en'):
+        if language == 'sv':
+            return (
+                'Jag menar förnamn och efternamn tillsammans, till exempel Khaled Darwish. '
+                'Vad är ditt fullständiga namn?'
+            )
+        if language == 'ar':
+            return (
+                'أقصد الاسم الأول واسم العائلة معاً، مثل: خالد درويش. '
+                'ما اسمك الكامل؟'
+            )
+        return (
+            'I mean your first and family name together, for example Khaled Darwish. '
+            'What is your full name?'
+        )
 
     def ask_disambiguation(self, full_name, language='en'):
         if language == 'sv':
@@ -740,26 +801,50 @@ class TildMemory:
         return False
 
     def is_negative(self, text):
+        from src.language import is_arabic_negation
+
+        if is_arabic_negation(text):
+            return True
+
         t = self._normalize_confirm_words(text)
         no_words = {
             'no', 'nope', 'nah', 'nej', 'n', 'noo', 'nuh',
-            'لا', 'لأ', 'مو', 'مش', 'كلا',
+            'لا', 'لأ', 'مو', 'مش', 'كلا', 'لست', 'ليس',
         }
         if t in no_words:
             return True
-        phrases = ['not me', 'someone else', 'not omar', 'inte jag', 'nej det', 'no im not', "no i'm not"]
-        return any(p in t for p in phrases)
+        phrases = [
+            'not me', 'someone else', 'not omar', 'inte jag', 'nej det',
+            'no im not', "no i'm not", 'لست عمر', 'ليس عمر', 'انا لست', 'أنا لست',
+        ]
+        raw = text.strip()
+        return any(p in t for p in phrases) or any(p in raw for p in phrases)
 
     def answer_arabic_gate_small_talk(self, text, language='ar'):
         """Arabic greeting/small talk while waiting for Omar to confirm."""
-        if self.is_awaiting_owner_confirm():
+        from src.language import is_arabic_greeting, is_arabic_gate_chatter
+
+        raw = (text or '').strip()
+        if self.is_awaiting_owner_confirm() and is_arabic_greeting(raw):
             return (
                 'أهلاً! أنا بخير، شكراً لسؤالك. أنا تيلد. '
                 'هل أنت عمر؟ قل نعم وسأسألك عن كلمة المرور.'
             )
+        if self.is_awaiting_owner_confirm():
+            return (
+                'أكيد! أنا تيلد. هل أنت عمر؟ قل نعم وسأسألك عن كلمة المرور. '
+                'إن لم تكن عمر، قل لا وأخبرني اسمك الكامل.'
+            )
+        if is_arabic_gate_chatter(raw) and any(
+            p in raw for p in ('ممكن', 'اسال', 'أسأل', 'اسأل', 'سؤال', 'سوال')
+        ):
+            return (
+                'بالطبع! يمكنك أن تسألني بعد قليل. '
+                'أولاً، من أتحدث معه؟ ما اسمك الكامل؟'
+            )
         return (
-            'مرحباً! أنا Tild. قبل أن نتابع، من أتحدث معه؟ '
-            'قل اسمك الكامل أو قل نعم إذا كنت Omar.'
+            'مرحباً! أنا تيلد. قبل أن نتابع، من أتحدث معه؟ '
+            'قل اسمك الكامل، أو نعم إذا كنت Omar.'
         )
 
     def ask_owner_confirm_again(self, language='en'):
@@ -912,21 +997,64 @@ class TildMemory:
 
         print(f"Tild learned: {question} → {correct_answer}")
 
+    def is_user_confirmation(self, text):
+        """User agrees their correction was right — not a new correction."""
+        if not text:
+            return False
+        raw = text.strip().lower()
+        phrases = (
+            'كلامي صح', 'يعني صح', 'يعني كلامي صح', 'صحيح', 'معك حق', 'أنت محق',
+            'انت محق', "that's right", 'i am right', 'im right', 'you are right',
+            'du har rätt', 'det stämmer',
+        )
+        return any(p in raw for p in phrases)
+
     def is_correction(self, text):
-        correction_words = [
-            'no that', 'no thats', 'wrong', 'incorrect',
-            'not right', 'that is wrong', 'that was wrong',
-            'you are wrong', 'not correct', 'thats not',
-            "that's not", 'no you', 'thats wrong',
-            'nei det', 'nej det', 'fel', 'felaktigt',
-            'inte rätt', 'du har fel', 'det stämmer inte',
-            'nej', 'fel svar', 'inte korrekt',
-            'لا', 'خطأ', 'غلط', 'مش صح',
-            'ده غلط', 'هذا خطأ', 'لأ',
-            'مش كده', 'انت غلطان', 'غير صحيح'
-        ]
+        from src.language import is_arabic_text
+        from src.omar_questions import is_omar_info_wrong_feedback
+
+        if not text or self.is_user_confirmation(text):
+            return False
+        if is_omar_info_wrong_feedback(text):
+            return False
+
+        if is_arabic_text(text):
+            return self._is_arabic_correction(text)
+
         text_lower = text.lower()
-        return any(word in text_lower for word in correction_words)
+        phrase_hits = [
+            'no that', 'no thats', 'that is wrong', 'that was wrong',
+            'you are wrong', 'not correct', "that's not", 'thats wrong',
+            'incorrect', 'not right', 'nei det', 'nej det', 'fel svar',
+            'inte rätt', 'du har fel', 'det stämmer inte', 'inte korrekt',
+            'wrong answer', 'actually it',
+        ]
+        if any(p in text_lower for p in phrase_hits):
+            return True
+        return bool(re.search(r'\b(?:wrong|incorrect|nej|fel)\b', text_lower))
+
+    @staticmethod
+    def _is_arabic_correction(text):
+        """Whole-word / phrase only — never match لا inside الاخيرة etc."""
+        import re
+        from src.omar_questions import is_omar_info_wrong_feedback
+
+        if is_omar_info_wrong_feedback(text):
+            return False
+        raw = text.strip()
+        phrases = (
+            'انت غلط', 'أنت غلط', 'انت مخطئ', 'أنت مخطئ',
+            'جوابك غلط', 'ردك غلط', 'هذا خطأ', 'هذا غلط', 'غير صحيح',
+            'ليس صحيح', 'مش صح', 'معلومات خاطئة', 'الرقم خطأ', 'الرقم الذي ذكرت',
+            'ليس عمر', 'ليس صحيحاً',
+        )
+        if any(p in raw for p in phrases):
+            return True
+        if re.search(r'(?:^|[\s،.])لا(?:[\s،.?]|$)', raw):
+            return True
+        if 'خطأ' in raw and re.search(r'(ذكرت|قلت|جاوبت|ردك|إجابتك)', raw):
+            return True
+        return False
 
     def extract_correction(self, text):
         remove_words = [
@@ -1041,7 +1169,39 @@ class TildMemory:
         text_lower = text.lower()
         return any(trigger in text_lower for trigger in IDENTITY_TRIGGERS)
 
+    def is_invalid_guest_identity(self):
+        if not self.is_session_identified() or self.is_owner():
+            return False
+        from src.language import is_arabic_negation
+
+        name = (self.get_user_full_name() or self.get_user_name() or '').strip()
+        if not name:
+            return False
+        if 'لست' in name or 'ممكن' in name or is_arabic_negation(name):
+            return True
+        return False
+
+    def clear_invalid_guest_identity(self):
+        if not self.is_invalid_guest_identity():
+            return False
+        print(f"Tild cleared invalid guest identity: {self.get_user_name()!r}")
+        self.start_session(clear_history=False)
+        return True
+
+    def session_greeting_reply(self, language='en'):
+        name = self.get_user_name() or ''
+        if language == 'sv':
+            return f"Hej{' ' + name if name else ''}! Hur kan jag hjälpa dig?"
+        if language == 'ar':
+            return f"أهلاً{' ' + name if name else ''}! كيف يمكنني مساعدتك؟"
+        return f"Hello{' ' + name if name else ''}! How can I help you today?"
+
     def is_name_question(self, text):
+        from src.language import is_name_intro_statement
+
+        if is_name_intro_statement(text):
+            return False
+
         text_lower = text.lower()
         return any(trigger in text_lower for trigger in NAME_TRIGGERS)
 
@@ -1084,12 +1244,22 @@ class TildMemory:
         return f'Your name is {name}!'
 
     def find_correction(self, user_input):
-        if self.is_identity_question(user_input) or self.is_name_question(user_input):
+        from src.omar_questions import is_asking_about_omar_person
+
+        if (
+            self.is_identity_question(user_input)
+            or self.is_name_question(user_input)
+            or is_asking_about_omar_person(user_input)
+        ):
             return None
 
         u_words = set(re.findall(r'\w+', user_input.lower())) - CORRECTION_STOPWORDS
         for correction in self.corrections:
-            answer = correction.get('correct', '')
+            answer = (correction.get('correct') or '').strip()
+            if not answer or len(answer) > 200:
+                continue
+            if answer.startswith('هل') or 'معلوماتك عن عمر' in answer:
+                continue
             if self.is_owner() and 'do not know who you are' in answer.lower():
                 continue
 
@@ -1103,9 +1273,16 @@ class TildMemory:
                 continue
 
             common = q_words.intersection(u_words)
-            if len(common) / len(q_words) >= 0.75 and len(common) >= 2:
+            if len(common) / len(q_words) >= 0.85 and len(common) >= 3:
                 return answer
         return None
+
+    def answer_user_confirmation(self, language='en'):
+        if language == 'sv':
+            return 'Ja, det stämmer! Tack för att du rättade mig.'
+        if language == 'ar':
+            return 'نعم، كلامك صحيح! شكراً على التوضيح.'
+        return 'Yes, you are right! Thanks for clarifying.'
 
     def add_omar_fact(self, fact, *, event_date=None):
         if isinstance(fact, dict):

@@ -17,6 +17,12 @@ class TildSearch:
     def __init__(self):
         wikipedia.set_lang('en')
 
+    @staticmethod
+    def _wiki_lang(query):
+        from src.language import is_arabic_text
+
+        return 'ar' if is_arabic_text(query) else 'en'
+
     def get_weather(self, query):
         try:
             words = query.lower().replace('?', '').split()
@@ -54,31 +60,41 @@ class TildSearch:
 
     def search_wikipedia(self, query):
         try:
-            # Only use the last question if multiple sentences
-            if '.' in query:
-                query = query.split('.')[-1].strip()
-            if '?' in query:
-                parts = query.split('?')
-                query = parts[-2].strip() + '?' if len(parts) > 1 else query
+            from src.language import is_arabic_text
 
-            clean_query = query.lower().strip('?').strip()
+            lang = self._wiki_lang(query)
+            wikipedia.set_lang(lang)
+
+            # Only use the last question if multiple sentences
+            if '.' in query and not is_arabic_text(query):
+                query = query.split('.')[-1].strip()
+            if '?' in query or '؟' in query:
+                parts = re.split(r'[?؟]', query)
+                query = parts[-2].strip() if len(parts) > 1 else query
+
+            clean_query = query.strip('?؟').strip()
+            clean_lower = clean_query.lower()
 
             remove_phrases = [
-                'who is ', 'what is ', 'where is ', 'when is ',
+                'who is ', 'what is ', 'where is ', 'when is ', 'when will ',
                 'tell me about ', 'who was ', 'what was ',
                 'where was ', 'when was ',
                 'vem är ', 'vad är ', 'var är ', 'när är ',
                 'berätta om ', 'vem var ', 'vad var ',
+                'من هو ', 'من هي ', 'ما هو ', 'ما هي ', 'ماذا ', 'متى ',
+                'أريد ', 'اريد ', 'اعرف ', 'أعرف ', 'معلومات عن ', 'عن ',
+                'ما اسباب ', 'ما أسباب ',
             ]
             for phrase in remove_phrases:
-                if clean_query.startswith(phrase):
+                if clean_lower.startswith(phrase) or clean_query.startswith(phrase):
                     clean_query = clean_query[len(phrase):]
+                    clean_lower = clean_query.lower()
                     break
 
             clean_query = clean_query.strip()
-            print(f"[Wikipedia searching: {clean_query}]")
+            print(f"[Wikipedia {lang}: {clean_query}]")
 
-            result = wikipedia.summary(clean_query, sentences=2, auto_suggest=True)
+            result = wikipedia.summary(clean_query, sentences=3, auto_suggest=True)
 
             if len(result) > 200:
                 result = result[:200] + "..."
@@ -112,8 +128,19 @@ class TildSearch:
         if not result:
             return None
 
+        from src.language import is_arabic_text
+
         query_lower = query.lower()
         is_swedish = any(c in query for c in 'åäöÅÄÖ')
+        is_arabic = is_arabic_text(query)
+
+        if is_arabic:
+            intros = [
+                'بحثت عن ذلك.',
+                'إليك ما وجدته:',
+                'هذا ما أعرفه من مصدر عام:',
+            ]
+            return f"{random.choice(intros)} {result}"
 
         if any(w in query_lower for w in ['weather', 'temperature', 'väder', 'vädret', 'temperatur']):
             intros = ['Jag kollade!', 'Här är vädret.', 'Jag sökte upp det!'] if is_swedish else ['I checked for you!', 'Here is the weather.', 'I looked it up!']
@@ -148,12 +175,19 @@ class TildSearch:
             'price of', 'how old', 'when was',
             'what does', 'who won', 'who is the',
             'temperature', 'forecast', 'when did',
+            'world cup', 'causes of',
             # Swedish
             'vad är', 'vem är', 'var är', 'när är',
             'hur mycket', 'hur många', 'vad hände',
             'berätta om', 'vädret', 'väder',
             'temperatur', 'hur gammal är', 'när var',
             'vem vann', 'vad kostar',
+            # Arabic
+            'ما هو', 'ما هي', 'من هو', 'من هي', 'ماذا', 'متى', 'أين',
+            'معلومات عن', 'اعرف', 'أعرف', 'اريد', 'أريد', 'اسباب', 'أسباب',
+            'مجرة', 'كأس العالم', 'حرب', 'الحج', 'العمرة', 'مناسك',
         ]
         text_lower = text.lower()
+        if any(trigger in text for trigger in search_triggers):
+            return True
         return any(trigger in text_lower for trigger in search_triggers)

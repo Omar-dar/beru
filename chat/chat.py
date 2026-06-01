@@ -6,16 +6,18 @@ from dotenv import load_dotenv
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 from src.rag import TildRAG
-from src.memory import TildMemory
+from src.memory import TildMemory, GREETING_WORDS
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
 from src.deep_brain import DeepBrain
 from src.language import (
     detect_arabic_name,
     detect_language,
+    is_arabic_gate_chatter,
     is_arabic_greeting,
     is_arabic_question,
     is_arabic_text,
+    is_name_intro_statement,
     resolve_turn_language,
 )
 from src.router import (
@@ -233,25 +235,32 @@ def _title_name_words(words):
 
 
 def is_valid_full_name(full_name):
+    from src.language import is_arabic_negation
+
+    if is_arabic_negation(full_name):
+        return False
     words = full_name.lower().split()
     if len(words) < 2:
+        return False
+    if any('لست' in w for w in words):
         return False
     return not any(w in NAME_FILLER_WORDS for w in words)
 
 
-def detect_full_name(user_input_lower):
+def detect_full_name(user_input_lower, *, original_text=None):
     """Detect a multi-word full name from user input."""
+    from src.language import detect_arabic_full_name
     from src.memory import GREETING_WORDS, OWNER_NAME
+
+    text = (original_text or user_input_lower).strip()
 
     if looks_like_question(user_input_lower):
         return None
 
-    if is_arabic_text(user_input_lower):
-        if is_arabic_greeting(user_input_lower) or is_arabic_question(user_input_lower):
-            return None
-        explicit = detect_arabic_name(user_input_lower)
-        if explicit and ' ' in explicit:
-            return explicit
+    if is_arabic_text(text):
+        full_ar = detect_arabic_full_name(text)
+        if full_ar:
+            return full_ar
         return None
 
     if 'omar darwish' in user_input_lower:
@@ -265,6 +274,40 @@ def detect_full_name(user_input_lower):
         full_name = _title_name_words(words)
         if is_valid_full_name(full_name):
             return full_name
+
+    return None
+
+
+def merge_partial_full_name(partial_first_name, user_input, user_input_lower):
+    """Combine stored first name with a follow-up surname (Arabic or Latin)."""
+    from src.language import detect_arabic_full_name, is_arabic_text, _arabic_word_tokens
+
+    if not partial_first_name:
+        return detect_full_name(user_input_lower, original_text=user_input)
+
+    partial = partial_first_name.strip()
+    rest = user_input.strip()
+    if not rest:
+        return None
+
+    full = detect_full_name(user_input_lower, original_text=user_input)
+    if full:
+        return full
+
+    if is_arabic_text(rest):
+        tokens = _arabic_word_tokens(rest)
+        if len(tokens) == 1:
+            return f'{partial} {tokens[0]}'
+        ar_full = detect_arabic_full_name(rest)
+        if ar_full:
+            return ar_full
+
+    words = [w for w in re.findall(r"[A-Za-z\u0600-\u06FF']+", rest) if len(w) > 1]
+    if len(words) == 1:
+        w = words[0]
+        if is_arabic_text(w):
+            return f'{partial} {w}'
+        return f'{partial} {w.capitalize()}'
 
     return None
 
@@ -350,18 +393,22 @@ def get_response(
     language_hint=None,
 ):
     """Return (response_text, source) where source tracks how the answer was produced."""
+    memory.clear_invalid_guest_identity()
     in_gate = (
         not memory.is_session_identified()
         or memory.get_pending_name()
         or memory.is_awaiting_full_name()
         or memory.is_awaiting_disambiguation()
+        or memory.is_awaiting_owner_confirm()
     )
     language = resolve_turn_language(
         user_input,
         hint=language_hint,
         session_language=memory.session.get('language'),
-        in_gate=in_gate or not memory.is_session_identified(),
+        in_gate=in_gate,
     )
+    if is_arabic_text(user_input):
+        language = 'ar'
     memory.session['language'] = language
     user_input_lower = user_input.lower()
     tone = memory.get_tone()
@@ -388,6 +435,14 @@ def get_response(
 
     # Must know who is talking before anything else
     if not memory.is_session_identified():
+        if is_arabic_text(user_input) and memory.is_negative(user_input):
+            memory.clear_awaiting_owner_confirm()
+            return memory.ask_to_identify('ar'), 'gate'
+
+        if is_arabic_text(user_input) and is_arabic_gate_chatter(user_input):
+            if not memory.is_affirmative(user_input):
+                return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
+
         if memory.is_today_activity_question(user_input):
             return memory.respond_today_question_before_identify(language), 'gate'
 
@@ -401,13 +456,19 @@ def get_response(
 
         # Waiting for full name after first name only
         if memory.is_awaiting_full_name():
-            full_name = detect_full_name(user_input_lower)
-            if full_name and len(full_name.split()) >= 2:
-                memory.session['awaiting_full_name'] = False
-                return memory.handle_guest_registration(full_name, language), 'gate'
+            from src.language import is_arabic_name_meta_question
+
+            if is_arabic_name_meta_question(user_input):
+                return memory.explain_full_name_request(language), 'gate'
 
             partial = memory.session.get('partial_first_name')
-            single = detect_name(user_input_lower)
+            full_name = merge_partial_full_name(partial, user_input, user_input_lower)
+            if full_name and len(full_name.split()) >= 2:
+                memory.session['awaiting_full_name'] = False
+                memory.session['partial_first_name'] = None
+                return memory.handle_guest_registration(full_name, language), 'gate'
+
+            single = detect_name(user_input_lower) or detect_arabic_name(user_input)
             if single and not partial:
                 memory.begin_full_name_collection(partial_first_name=single, language=language)
                 return memory.ask_full_name(language, partial_first_name=single), 'gate'
@@ -416,22 +477,26 @@ def get_response(
         # Waiting for Omar to confirm identity
         if memory.is_awaiting_owner_confirm():
             detected_name = detect_name(user_input_lower) or detect_arabic_name(user_input)
-            full_name = detect_full_name(user_input_lower)
+            full_name = detect_full_name(user_input_lower, original_text=user_input)
 
             if is_arabic_text(user_input) and (
-                is_arabic_greeting(user_input) or is_arabic_question(user_input)
+                is_arabic_greeting(user_input)
+                or is_arabic_question(user_input)
+                or is_arabic_gate_chatter(user_input)
             ):
                 if not memory.is_affirmative(user_input) and detected_name != 'Omar':
-                    return memory.answer_arabic_gate_small_talk(user_input, language), 'gate'
+                    return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
 
             if memory.is_affirmative(user_input) or detected_name == 'Omar':
                 memory.clear_awaiting_owner_confirm()
-                memory.set_pending_name('Omar', language)
-                return memory.ask_owner_password(language), 'gate'
+                memory.set_pending_name('Omar', 'ar' if is_arabic_text(user_input) else language)
+                return memory.ask_owner_password(
+                    'ar' if is_arabic_text(user_input) else language
+                ), 'gate'
 
             if memory.is_negative(user_input):
                 memory.clear_awaiting_owner_confirm()
-                return memory.ask_to_identify(language), 'gate'
+                return memory.ask_to_identify('ar' if is_arabic_text(user_input) else language), 'gate'
 
             if full_name and detected_name != 'Omar':
                 if looks_like_question(user_input_lower):
@@ -446,8 +511,8 @@ def get_response(
 
             return memory.ask_owner_confirm_again(language), 'gate'
 
-        full_name = detect_full_name(user_input_lower)
-        detected_name = detect_name(user_input_lower)
+        full_name = detect_full_name(user_input_lower, original_text=user_input)
+        detected_name = detect_name(user_input_lower) or detect_arabic_name(user_input)
 
         if detected_name in PROTECTED_USERS:
             memory.set_pending_name(detected_name, language)
@@ -463,6 +528,9 @@ def get_response(
         if detected_name and detected_name != 'Omar':
             memory.begin_full_name_collection(partial_first_name=detected_name, language=language)
             return memory.ask_full_name(language, partial_first_name=detected_name), 'gate'
+
+        if is_arabic_text(user_input):
+            return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
 
         return memory.ask_to_identify(language), 'gate'
 
@@ -507,6 +575,21 @@ def get_response(
 
     if memory.is_identity_question(user_input):
         return memory.answer_identity(language), 'memory'
+
+    if memory.is_session_identified() and not memory.is_owner():
+        if is_arabic_greeting(user_input) or (
+            len(user_input.split()) <= 3 and user_input_lower.strip() in GREETING_WORDS
+        ):
+            return memory.session_greeting_reply(language), 'memory'
+
+        if is_name_intro_statement(user_input):
+            full = detect_full_name(user_input_lower, original_text=user_input)
+            if full and len(full.split()) >= 2:
+                return memory.handle_guest_registration(full, language), 'gate'
+            first = detect_arabic_name(user_input) or detect_name(user_input_lower)
+            if first:
+                memory.begin_full_name_collection(partial_first_name=first, language=language)
+                return memory.ask_full_name(language, partial_first_name=first), 'gate'
 
     if memory.is_name_question(user_input):
         return memory.answer_name_question(language), 'memory'
@@ -560,6 +643,24 @@ def get_response(
         print("[Knowledge memory used]")
         return knowledge_answer, 'knowledge'
 
+    from src.omar_questions import is_asking_about_omar_person, is_omar_info_wrong_feedback
+
+    if memory.is_session_identified() and not memory.is_owner():
+        if is_omar_info_wrong_feedback(user_input):
+            return memory.knowledge.answer_omar_for_guest(
+                user_input,
+                language,
+                guest_name=memory.get_user_name(),
+                wrong_info_ack=True,
+            ), 'knowledge'
+        if is_asking_about_omar_person(user_input):
+            return memory.knowledge.answer_omar_for_guest(
+                user_input, language, guest_name=memory.get_user_name()
+            ), 'knowledge'
+
+    if memory.is_user_confirmation(user_input):
+        return memory.answer_user_confirmation(language), 'memory'
+
     # Correction check
     if memory.is_correction(user_input):
         last_exchange = [m for m in memory.conversation_history if m["role"] == "tild"]
@@ -570,7 +671,7 @@ def get_response(
             question = last_question[-2]["text"] if len(last_question) >= 2 else last_question[-1]["text"]
             correct = memory.extract_correction(user_input)
 
-            if correct:
+            if correct and len(correct) >= 8 and not correct.strip().startswith('هل'):
                 memory.add_correction(wrong_answer, correct, question)
                 if memory.is_owner():
                     memory.add_omar_fact(correct)

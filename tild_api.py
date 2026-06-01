@@ -7,11 +7,13 @@ ensure_project_venv()
 
 import base64
 import tempfile
+from contextlib import contextmanager
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
+from src.client_sessions import bind_client_session, reset_client_session
 from src.pipeline import TildPipeline
 from src.text_direction import text_direction_for_language
 from src.text_style import strip_long_dashes
@@ -45,6 +47,33 @@ def _allowed_file(filename):
     return ext in ALLOWED_EXTENSIONS
 
 
+def _collector_session_id():
+    """Per-browser id from Netlify UI (localStorage) or fallback to IP."""
+    header = (request.headers.get('X-Tild-Session-Id') or '').strip()
+    if header:
+        return header
+    if request.is_json:
+        body = request.get_json(silent=True) or {}
+        sid = (body.get('session_id') or '').strip()
+        if sid:
+            return sid
+    if request.form:
+        sid = (request.form.get('session_id') or '').strip()
+        if sid:
+            return sid
+    return request.remote_addr or 'anonymous'
+
+
+@contextmanager
+def _client_session_scope():
+    """Bind this HTTP request to one browser session (Mac vs phone stay separate)."""
+    token = bind_client_session(_collector_session_id())
+    try:
+        yield
+    finally:
+        reset_client_session(token)
+
+
 def _parse_bool(value, default=False):
     if value is None:
         return default
@@ -76,39 +105,45 @@ def _audio_upload():
 @app.route('/start', methods=['GET'])
 def start():
     lang = (request.args.get('language') or 'en').strip() or 'en'
-    greeting = pipeline.start_session(clear_history=True, language=lang)
-    memory = pipeline.memory
-    return jsonify({
-        'response': greeting,
-        'language': lang,
-        'text_direction': text_direction_for_language(lang),
-        'known_user': memory.is_session_identified(),
-        'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
-        'is_owner': memory.is_owner(),
-        'tone': memory.get_tone(),
-        'active_document': memory.get_active_document_info(),
-    })
+    sid = _collector_session_id()
+    with _client_session_scope():
+        greeting = pipeline.start_session(clear_history=True, language=lang, client_session_id=sid)
+        memory = pipeline.memory
+        return jsonify({
+            'response': greeting,
+            'language': lang,
+            'text_direction': text_direction_for_language(lang),
+            'known_user': memory.is_session_identified(),
+            'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
+            'is_owner': memory.is_owner(),
+            'tone': memory.get_tone(),
+            'active_document': memory.get_active_document_info(),
+        })
 
 
 @app.route('/clear', methods=['POST'])
 def clear_chat():
-    lang = pipeline.memory.session.get('language') or 'en'
-    greeting = pipeline.start_session(clear_history=True, language=lang)
-    return jsonify({
-        'status': 'ok',
-        'response': greeting,
-        'language': lang,
-        'text_direction': text_direction_for_language(lang),
-        'active_document': None,
-    })
+    with _client_session_scope():
+        lang = pipeline.memory.session.get('language') or 'en'
+        greeting = pipeline.start_session(
+            clear_history=True, language=lang, client_session_id=_collector_session_id()
+        )
+        return jsonify({
+            'status': 'ok',
+            'response': greeting,
+            'language': lang,
+            'text_direction': text_direction_for_language(lang),
+            'active_document': None,
+        })
 
 
 @app.route('/documents', methods=['GET'])
 def list_documents():
-    return jsonify({
-        'documents': pipeline.rag.document_index.list_documents(),
-        'active_document': pipeline.memory.get_active_document_info(),
-    })
+    with _client_session_scope():
+        return jsonify({
+            'documents': pipeline.rag.document_index.list_documents(),
+            'active_document': pipeline.memory.get_active_document_info(),
+        })
 
 
 @app.route('/upload', methods=['POST'])
@@ -136,23 +171,25 @@ def upload_document():
             upload.save(tmp.name)
             tmp_path = tmp.name
 
-        meta = pipeline.ingest_pdf(tmp_path, filename)
-        short = f'Ready bro - I indexed "{meta["filename"]}". Ask me anything about it.'
-        if not pipeline.memory.is_owner():
-            short = f'Ready - I indexed "{meta["filename"]}". Ask me anything about it.'
-        return jsonify({
-            'status': 'ok',
-            'document': {
-                'id': meta['id'],
-                'filename': meta['filename'],
-                'page_count': meta['page_count'],
-                'chunk_count': meta['chunk_count'],
-                'preview': meta['preview'],
-                'uploaded_at': meta['uploaded_at'],
-            },
-            'active_document': pipeline.memory.get_active_document_info(),
-            'message': strip_long_dashes(short),
-        })
+        sid = _collector_session_id()
+        with _client_session_scope():
+            meta = pipeline.ingest_pdf(tmp_path, filename, client_session_id=sid)
+            short = f'Ready bro - I indexed "{meta["filename"]}". Ask me anything about it.'
+            if not pipeline.memory.is_owner():
+                short = f'Ready - I indexed "{meta["filename"]}". Ask me anything about it.'
+            return jsonify({
+                'status': 'ok',
+                'document': {
+                    'id': meta['id'],
+                    'filename': meta['filename'],
+                    'page_count': meta['page_count'],
+                    'chunk_count': meta['chunk_count'],
+                    'preview': meta['preview'],
+                    'uploaded_at': meta['uploaded_at'],
+                },
+                'active_document': pipeline.memory.get_active_document_info(),
+                'message': strip_long_dashes(short),
+            })
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 422
     except Exception as exc:
@@ -170,30 +207,38 @@ def chat():
     document_id = data.get('document_id')
     language_hint = (data.get('language') or '').strip() or None
 
-    if document_id:
-        doc = pipeline.rag.document_index.get_document(document_id)
-        if doc:
-            pipeline.memory.set_active_document(doc['id'], doc['filename'])
-
     if not message:
         return jsonify({'error': 'No message'}), 400
 
-    result = pipeline.chat_turn(
-        message,
-        new_chat=new_chat,
-        format_for_ui=True,
-        language_hint=language_hint,
-    )
-    return jsonify(result)
+    sid = _collector_session_id()
+    with _client_session_scope():
+        if document_id:
+            doc = pipeline.rag.document_index.get_document(document_id)
+            if doc:
+                pipeline.memory.set_active_document(doc['id'], doc['filename'])
+
+        result = pipeline.chat_turn(
+            message,
+            new_chat=new_chat,
+            format_for_ui=True,
+            language_hint=language_hint,
+            collector_session_id=sid,
+            client_session_id=sid,
+        )
+        return jsonify(result)
 
 
 @app.route('/health', methods=['GET'])
 def health():
+    from src.conversation_collector import collect_dir, collection_enabled
+
     doc_count = len(pipeline.rag.document_index.documents)
     return jsonify({
         'status': 'ok',
         'message': 'Tild API is running',
         'documents_indexed': doc_count,
+        'conversation_collection': collection_enabled(),
+        'conversation_collect_dir': str(collect_dir()),
     })
 
 
@@ -233,11 +278,6 @@ def voice_chat():
     document_id = (request.form.get('document_id') or '').strip() or None
     language_hint = (request.form.get('language') or '').strip() or None
 
-    if document_id:
-        doc = pipeline.rag.document_index.get_document(document_id)
-        if doc:
-            pipeline.memory.set_active_document(doc['id'], doc['filename'])
-
     tmp_path = None
     try:
         suffix = os.path.splitext(secure_filename(upload.filename))[1] or '.webm'
@@ -251,12 +291,21 @@ def voice_chat():
             return jsonify({'error': 'Could not understand audio. Please try again.'}), 422
 
         turn_language = language_hint if language_hint in ('en', 'sv', 'ar') else stt['language']
-        result = pipeline.chat_turn(
-            transcript,
-            new_chat=new_chat,
-            format_for_ui=True,
-            language_hint=turn_language,
-        )
+        sid = _collector_session_id()
+        with _client_session_scope():
+            if document_id:
+                doc = pipeline.rag.document_index.get_document(document_id)
+                if doc:
+                    pipeline.memory.set_active_document(doc['id'], doc['filename'])
+
+            result = pipeline.chat_turn(
+                transcript,
+                new_chat=new_chat,
+                format_for_ui=True,
+                language_hint=turn_language,
+                collector_session_id=sid,
+                client_session_id=sid,
+            )
         result['transcript'] = transcript
         result['transcript_language'] = stt['language']
 
@@ -301,4 +350,5 @@ def voice_speak():
 
 
 if __name__ == '__main__':
-    app.run(port=8000, debug=False)
+    # 0.0.0.0 so phones / Netlify users can reach this Mac on the LAN (or via tunnel).
+    app.run(host='0.0.0.0', port=8000, debug=False)

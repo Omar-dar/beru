@@ -8,6 +8,7 @@ from src.learning import learn_from_exchange
 from src.markdown_format import format_for_ui as apply_ui_format
 from src.text_direction import strip_bidi_controls, text_direction_for_language
 from src.text_style import strip_long_dashes
+from src.client_sessions import bind_client_session, reset_client_session
 from src.memory import TildMemory
 from src.rag import TildRAG
 from src.search import TildSearch
@@ -29,10 +30,15 @@ class TildPipeline:
             self.model, self.tokenizer = None, None
         print("Tild pipeline ready!")
 
-    def start_session(self, clear_history=True, language='en'):
-        self.memory.start_session(clear_history=clear_history)
-        greeting = strip_long_dashes(self.memory.greeting_for_session(language))
-        return strip_bidi_controls(greeting)
+    def start_session(self, clear_history=True, language='en', client_session_id=None):
+        bind_id = (client_session_id or '').strip() or None
+        token = bind_client_session(bind_id)
+        try:
+            self.memory.start_session(clear_history=clear_history)
+            greeting = strip_long_dashes(self.memory.greeting_for_session(language))
+            return strip_bidi_controls(greeting)
+        finally:
+            reset_client_session(token)
 
     def chat_turn(
         self,
@@ -42,16 +48,43 @@ class TildPipeline:
         format_for_ui=False,
         learn=True,
         language_hint=None,
+        collector_session_id=None,
+        client_session_id=None,
     ):
         """
         One full chat turn: store message, route, format, learn, store reply.
 
-        Returns dict with response, language, tone, source, and session flags.
+        client_session_id: per-browser identity (X-Tild-Session-Id). Isolates Omar login
+        from other devices; falls back to collector_session_id when omitted.
         """
         message = (message or '').strip()
         if not message:
             raise ValueError('Empty message')
 
+        bind_id = (client_session_id or collector_session_id or '').strip() or None
+        token = bind_client_session(bind_id)
+        try:
+            return self._chat_turn_impl(
+                message,
+                new_chat=new_chat,
+                format_for_ui=format_for_ui,
+                learn=learn,
+                language_hint=language_hint,
+                collector_session_id=collector_session_id,
+            )
+        finally:
+            reset_client_session(token)
+
+    def _chat_turn_impl(
+        self,
+        message,
+        *,
+        new_chat=False,
+        format_for_ui=False,
+        learn=True,
+        language_hint=None,
+        collector_session_id=None,
+    ):
         if new_chat:
             self.memory.start_session(clear_history=True)
 
@@ -90,6 +123,18 @@ class TildPipeline:
 
         self.memory.add_to_conversation('tild', response)
 
+        if collector_session_id:
+            from src.conversation_collector import collect_turn
+
+            collect_turn(
+                session_id=collector_session_id,
+                user_message=message,
+                tild_response=response,
+                memory=self.memory,
+                source=source,
+                new_chat=new_chat,
+            )
+
         return {
             'response': response,
             'language': language,
@@ -102,8 +147,13 @@ class TildPipeline:
             'active_document': self.memory.get_active_document_info(),
         }
 
-    def ingest_pdf(self, file_path, original_filename):
+    def ingest_pdf(self, file_path, original_filename, client_session_id=None):
         """Upload + index a PDF; set as active document for this session."""
-        meta = self.rag.document_index.add_pdf(file_path, original_filename)
-        self.memory.set_active_document(meta['id'], meta['filename'])
-        return meta
+        bind_id = (client_session_id or '').strip() or None
+        token = bind_client_session(bind_id)
+        try:
+            meta = self.rag.document_index.add_pdf(file_path, original_filename)
+            self.memory.set_active_document(meta['id'], meta['filename'])
+            return meta
+        finally:
+            reset_client_session(token)

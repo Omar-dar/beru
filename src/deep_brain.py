@@ -59,17 +59,19 @@ class DeepBrain:
         from src.language import detect_language
 
         detected = detect_language(user_input)
-        if language and len((user_input or '').strip()) <= 12:
-            pass
-        else:
+        short = len((user_input or '').strip().split()) <= 4
+        if detected in ('ar', 'sv'):
+            language = detected
+        elif not (language and short):
             language = detected or language or 'en'
 
         language_instruction = {
             'sv': 'Användaren skrev på SVENSKA. Du MÅSTE svara på svenska. ALDRIG engelska eller arabiska.',
             'ar': (
-                'المستخدم كتب بالعربية. يجب أن تجيب بالعربية فقط. '
-                'استخدم "عمر" و"عمر دارويش" وليس Omar بالإنجليزية. '
-                'اذكر التاريخ كاملاً (مثل 29 مايو 2026) وليس السنة فقط إن كان معروفاً.'
+                'المستخدم كتب بالعربية. يجب أن تجيب بالعربية فقط — بدون إنجليزية أو تركية أو تايلاندية. '
+                'لا تكرر نفس الفقرة. إذا لم تكن متأكداً قل أنك لا تعرف بدلاً من اختراع حقائق. '
+                'مجرة درب التبانة عمرها نحو 13 مليار سنة وليس عمر الكون (~13.7 مليار). '
+                'استخدم "عمر دارويش" لصاحبك وليس Omar إلا في الاسم التقني Tild.'
             ),
             'en': 'The user wrote in ENGLISH. You MUST reply in English ONLY. Never use Swedish or Arabic.',
         }
@@ -234,7 +236,9 @@ Tild ({language}):"""
                 raise Exception("Empty response")
 
             from src.text_style import strip_long_dashes
-            return self._enforce_language(strip_long_dashes(answer), language)
+            return self._enforce_language(
+                strip_long_dashes(answer), language, user_message=user_input
+            )
 
         except Exception as e:
             print(f"Tild deep brain error: {e}")
@@ -314,7 +318,48 @@ Facts:"""
                 facts.append(line[0].upper() + line[1:] if line else line)
         return facts[:25]
 
-    def _enforce_language(self, answer, language):
+    @staticmethod
+    def _sanitize_arabic_answer(answer):
+        """Drop foreign-script garbage and repeated paragraphs from model output."""
+        import re
+
+        if not answer:
+            return answer
+        arabic_chars = set('ابتثجحخدذرزسشصضطظعغفقكلمنهوي')
+        lines = []
+        seen = set()
+        for para in re.split(r'\n\s*\n', answer.strip()):
+            para = para.strip()
+            if not para:
+                continue
+            latin = sum(1 for c in para if 'a' <= c.lower() <= 'z')
+            ar = sum(1 for c in para if c in arabic_chars)
+            if latin > ar and latin > 12:
+                continue
+            if re.search(r'[àáâãäåèéêëìíîïòóôõöùúûüýÿøæœğışç]', para, re.I):
+                continue
+            if re.search(r'[\u0e00-\u0eff]', para):
+                continue
+            key = re.sub(r'\s+', ' ', para)[:80]
+            if key in seen:
+                continue
+            seen.add(key)
+            lines.append(para)
+        return '\n\n'.join(lines[:4]).strip() or answer.strip()
+
+    def _enforce_language(self, answer, language, user_message=None):
+        from src.language import is_arabic_greeting, is_arabic_text, is_name_intro_statement
+
+        if language == 'ar':
+            answer = self._sanitize_arabic_answer(answer)
+
+        if user_message and (
+            is_name_intro_statement(user_message)
+            or is_arabic_greeting(user_message)
+            or (len(user_message.split()) <= 3 and not is_arabic_text(user_message))
+        ):
+            return answer
+
         swedish_chars = set('åäöÅÄÖ')
         arabic_chars = set('ابتثجحخدذرزسشصضطظعغفقكلمنهوي')
 
@@ -327,7 +372,7 @@ Facts:"""
             return "Förlåt, jag ska svara på svenska. Kan du fråga igen?"
         if language == 'ar' and not has_ar:
             return (
-                'عذراً، كان يجب أن أجيب بالعربية. '
+                'عذراً، لم أحصل على رد عربي واضح. '
                 'هل يمكنك إعادة سؤالك؟'
             )
         if language == 'ar' and has_sv and not has_ar:

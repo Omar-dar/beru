@@ -87,15 +87,25 @@ def _is_conversation_follow_up(text_lower, memory):
 
 
 def is_greeting_only(text):
+    from src.language import is_arabic_greeting
+
+    if is_arabic_greeting(text):
+        return True
     words = set(re.findall(r'\w+', text.lower())) - GREETING_WORDS
     return len(words) == 0
 
 
 def is_factual_rag_candidate(text, memory):
+    from src.language import is_arabic_text
+
     text_lower = text.lower()
     if is_creative_task(text, memory) or is_conversational(text, memory):
         return False
     if memory and memory.knowledge.should_block_search(text, memory.is_owner()):
+        return False
+    if is_arabic_text(text) and any(
+        w in text for w in ('مجرة', 'معلومات', 'اسباب', 'أسباب', 'كأس', 'الحج', 'العمرة', 'متى')
+    ):
         return False
     if any(t in text_lower for t in RAG_FACTUAL_TRIGGERS):
         return True

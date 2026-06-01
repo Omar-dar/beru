@@ -2,6 +2,9 @@ models/
 data/cached_*
 data/memory.json
 data/documents/
+data/collected_conversations/*.txt
+data/collected_conversations/good/
+data/collected_conversations/bad/
 __pycache__/
 *.pyc
 src/__pycache__/

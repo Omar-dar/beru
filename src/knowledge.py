@@ -138,15 +138,9 @@ class TildKnowledge:
         self.learned_omar_facts = facts or []
 
     def is_asking_about_omar(self, text):
-        text_lower = text.lower()
-        if 'omar' not in text_lower:
-            return False
-        hints = [
-            'who is', 'what is', 'tell me about', 'know about', 'this omar',
-            'who was', 'about omar', 'you asked', 'asked if', 'is he',
-            'vem är', 'vad är', 'berätta om', 'den här omar',
-        ]
-        return any(h in text_lower for h in hints)
+        from src.omar_questions import is_asking_about_omar_person
+
+        return is_asking_about_omar_person(text)
 
     @staticmethod
     def _is_owner_dated_statement(text):
@@ -195,6 +189,8 @@ class TildKnowledge:
                     return True
             return False
 
+        if self.is_asking_about_omar(text):
+            return True
         return any(trigger in text_lower for trigger in OMAR_ONLY_TRIGGERS)
 
     def is_tild_self_question(self, text):
@@ -605,28 +601,40 @@ class TildKnowledge:
 
         return None
 
-    def answer_omar_for_guest(self, text, language='en', guest_name=None):
+    def answer_omar_for_guest(self, text, language='en', guest_name=None, *, wrong_info_ack=False):
         """When someone other than Omar asks who Omar is  -  brief, offer more."""
         guest = guest_name or 'there'
-        profile = self.omar_profile
         category = self.detect_guest_omar_category(text)
         if category:
             return self._format_guest_category_detail(
                 category, self.learned_omar_facts, guest, language
             )
 
+        ack = ''
+        if wrong_info_ack:
+            if language == 'sv':
+                ack = 'Du har rätt  -  jag ska inte hitta på saker om Omar. '
+            elif language == 'ar':
+                ack = 'معك حق، لا يجب أن أختلق معلومات عن عمر. '
+            else:
+                ack = "You're right  -  I should not make up facts about Omar. "
+
         if language == 'sv':
             return (
+                f"{ack}"
                 f"Omar Darwish är min skapare och ägare  -  han byggde mig från grunden. "
                 f"Han studerar software engineering i Göteborg. "
                 f"{GUEST_DETAIL_OFFER_SV} ({guest})"
             )
         if language == 'ar':
             return (
-                f"Omar Darwish هو من أنشأني ومالكي. بنى Tild من الصفر. "
-                f"سألتُ إن كنت Omar لأنه الوحيد الذي يمكنه تأكيد أنه مالكي. أنت {guest}."
+                f"{ack}"
+                f"عمر دارويش هو من أنشأني ومالكي. بنى Tild من الصفر بلغة Python. "
+                f"يدرس هندسة البرمجيات وإدارة الأعمال في جامعة غوتنبرغ. "
+                f"سألتُ إن كنت Omar لأنه الوحيد الذي يؤكد هويته بكلمة المرور. أنت {guest}."
             )
         return (
+            f"{ack}"
             f"Omar Darwish is my creator and owner  -  he built me from scratch. "
             f"He's a software engineering student in Gothenburg, Sweden. "
             f"{GUEST_DETAIL_OFFER_EN}"
