@@ -1,4 +1,4 @@
-"""Resolve relative and explicit calendar dates in user text (EN/SV)."""
+"""Resolve relative and explicit calendar dates in user text (EN/SV/AR)."""
 
 import re
 from datetime import date, datetime, timedelta
@@ -16,6 +16,14 @@ _MONTHS = {
     'oct': 10, 'okt': 10, 'october': 10, 'oktober': 10,
     'nov': 11, 'november': 11,
     'dec': 12, 'december': 12, 'december': 12,
+    'ماي': 5, 'مايو': 5,
+}
+
+_AR_MONTHS_MAP = {
+    'يناير': 1, 'فبراير': 2, 'مارس': 3, 'أبريل': 4, 'ابريل': 4,
+    'مايو': 5, 'ماي': 5, 'يونيو': 6, 'يوليو': 7,
+    'أغسطس': 8, 'اغسطس': 8, 'سبتمبر': 9,
+    'أكتوبر': 10, 'اكتوبر': 10, 'نوفمبر': 11, 'ديسمبر': 12,
 }
 
 # (pattern, days before reference date; negative = future)
@@ -24,6 +32,10 @@ _RELATIVE_RULES = [
     (r'\b(yesterday|igår|i går)\b', 1),
     (r'\b(today|idag)\b', 0),
     (r'\b(tomorrow|imorgon|i morgon)\b', -1),
+    (r'\b(أول\s*أمس|اول\s*امس)\b', 2),
+    (r'\b(أمس)\b', 1),
+    (r'\b(اليوم)\b', 0),
+    (r'\b(غداً|غدا)\b', -1),
     (r'\b(\d{1,2})\s+days?\s+ago\b', None),
     (r'\bfor\s+(\d{1,2})\s+days?\s+ago\b', None),
     (r'\bför\s+(\d{1,2})\s+dag(?:ar)?\s+sedan\b', None),
@@ -46,11 +58,18 @@ _EXPLICIT_DATE = re.compile(
 
 _SIMPLE_DAY_MONTH = re.compile(
     r'(?:den\s+)?(\d{1,2})\s+'
-    r'(jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch|s)?|apr(?:il)?|'
+    r'(jan(?:uary|uari)?|feb(?:ruary|uari)?|mar(?:ch|s)?|apr(?:il)?|'
     r'may|maj|jun(?:e|i)?|jul(?:y|i)?|aug(?:ust)?(?:i)?|sep(?:t(?:ember)?)?|'
     r'oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)'
     r'(?:\s+(\d{4}))?',
     re.I,
+)
+
+_AR_DAY_MONTH = re.compile(
+    r'(?:يوم\s+)?(\d{1,2})\s+'
+    r'(يناير|فبراير|مارس|أبريل|ابريل|مايو|ماي|يونيو|يوليو|'
+    r'أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر)'
+    r'(?:\s+(\d{4}))?',
 )
 
 _CLARIFICATION_PATTERNS = [
@@ -81,7 +100,10 @@ def _month_num(token):
     if token.isdigit():
         m = int(token)
         return m if 1 <= m <= 12 else None
-    return _MONTHS.get(token.lower()[:12]) or _MONTHS.get(token.lower()[:3])
+    t = token.strip()
+    if t in _AR_MONTHS_MAP:
+        return _AR_MONTHS_MAP[t]
+    return _MONTHS.get(t.lower()[:12]) or _MONTHS.get(t.lower()[:3])
 
 
 def _year_num(token, ref):
@@ -106,19 +128,20 @@ def parse_calendar_date(text, reference=None):
         except ValueError:
             pass
 
-    m = _SIMPLE_DAY_MONTH.search(text)
-    if m:
-        day = int(m.group(1))
-        month = _month_num(m.group(2))
-        year = _year_num(m.group(3), ref) if m.lastindex and m.lastindex >= 3 else ref.year
-        if month:
-            try:
-                d = date(year, month, day)
-                if not m.group(3) and d > ref.date():
-                    d = date(year - 1, month, day)
-                return d
-            except ValueError:
-                pass
+    for pattern in (_SIMPLE_DAY_MONTH, _AR_DAY_MONTH):
+        m = pattern.search(text)
+        if m:
+            day = int(m.group(1))
+            month = _month_num(m.group(2))
+            year = _year_num(m.group(3), ref) if m.lastindex and m.lastindex >= 3 else ref.year
+            if month:
+                try:
+                    d = date(year, month, day)
+                    if not (m.lastindex and m.lastindex >= 3 and m.group(3)) and d > ref.date():
+                        d = date(year - 1, month, day)
+                    return d
+                except ValueError:
+                    pass
 
     return None
 
@@ -208,11 +231,16 @@ def parse_date_clarification(text, reference=None):
     return None
 
 
+_AR_MONTHS = (
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+)
+
+
 def format_date_for_language(d, language='en'):
     """Human-readable date for replies."""
     if isinstance(d, str):
         d = date.fromisoformat(d[:10])
-    ref = datetime.now().date()
     if language == 'sv':
         months = (
             'januari', 'februari', 'mars', 'april', 'maj', 'juni',
@@ -220,5 +248,5 @@ def format_date_for_language(d, language='en'):
         )
         return f'{d.day} {months[d.month - 1]} {d.year}'
     if language == 'ar':
-        return d.isoformat()
+        return f'{d.day} {_AR_MONTHS[d.month - 1]} {d.year}'
     return d.strftime('%B %d, %Y')
