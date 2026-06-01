@@ -92,9 +92,34 @@ Tild's response
 
 ## How To Run
 
-### Install dependencies
+### Install everything (new Mac or fresh clone)
+
 ```bash
-pip3 install -r requirements.txt
+git clone git@github.com:Omar-dar/tild.git
+cd tild
+chmod +x scripts/*.sh
+./scripts/setup_machine.sh
+```
+
+That creates a `.venv`, installs Python packages from `requirements.txt`, installs **Ollama**, and pulls **`llama3.2:3b`** (Tild's deep brain).
+
+**Manual Ollama only (macOS):**
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull llama3.2:3b
+```
+
+On Linux or Windows, install Ollama from [ollama.com](https://ollama.com), then run `ollama pull llama3.2:3b`.
+
+### Install Python dependencies only
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+./scripts/install_deep_brain.sh
 ```
 
 ### Train Tild from scratch
@@ -119,13 +144,9 @@ python3 tild.py voice
 
 ## Setup On New Machine
 
-```bash
-git clone git@github.com:Omar-dar/tild.git
-cd tild
-python3 setup.py
-```
+Use `./scripts/setup_machine.sh` (recommended). It installs Python deps and Ollama.
 
-This automatically installs everything and trains Tild.
+`python3 setup.py` only installs pip packages and runs **train + finetune** (slow, optional). Chat and the API use Ollama for reasoning; local `models/tild_v2` is optional and not in git.
 
 ## Environment Variables
 
@@ -153,7 +174,8 @@ The more varied and comprehensive the data the smarter Tild becomes.
 |---|---|
 | Python | Main programming language |
 | PyTorch | Neural network framework |
-| Transformers (HuggingFace) | Pre-trained model weights |
+| Ollama (`llama3.2:3b`) | Deep brain — creative chat and reasoning |
+| Transformers (HuggingFace) | Optional fine-tuned GPT-2 (`models/tild_v2`) |
 | tiktoken | GPT-2 tokenizer |
 | sentence-transformers | RAG similarity search |
 | Whisper (OpenAI) | Speech to text |

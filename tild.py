@@ -11,7 +11,7 @@ def main():
         print("  python3 tild.py finetune - Upgrade Tild's brain")
         print("  python3 tild.py chat    - Chat with Tild")
         print("  python3 tild.py voice   - Talk to Tild")
-        print("  python3 tild.py api     - Start Tild API for GUI (port 8000)")
+        print("  python3 tild.py api     - Start Tild API for GUI (port 8000, voice endpoints)")
         return
 
     if sys.argv[1] == 'train':
