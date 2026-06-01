@@ -13,6 +13,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from src.pipeline import TildPipeline
+from src.text_direction import text_direction_for_language
 from src.text_style import strip_long_dashes
 from src.voice import (
     capabilities as voice_capabilities,
@@ -74,12 +75,13 @@ def _audio_upload():
 
 @app.route('/start', methods=['GET'])
 def start():
-    pipeline.start_session(clear_history=True)
-    lang = 'en'
+    lang = (request.args.get('language') or 'en').strip() or 'en'
+    greeting = pipeline.start_session(clear_history=True, language=lang)
     memory = pipeline.memory
     return jsonify({
-        'response': strip_long_dashes(memory.greeting_for_session(lang)),
+        'response': greeting,
         'language': lang,
+        'text_direction': text_direction_for_language(lang),
         'known_user': memory.is_session_identified(),
         'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
         'is_owner': memory.is_owner(),
@@ -90,10 +92,13 @@ def start():
 
 @app.route('/clear', methods=['POST'])
 def clear_chat():
-    greeting = pipeline.start_session(clear_history=True)
+    lang = pipeline.memory.session.get('language') or 'en'
+    greeting = pipeline.start_session(clear_history=True, language=lang)
     return jsonify({
         'status': 'ok',
         'response': greeting,
+        'language': lang,
+        'text_direction': text_direction_for_language(lang),
         'active_document': None,
     })
 

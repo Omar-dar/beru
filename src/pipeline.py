@@ -6,6 +6,7 @@ from src.entities import TildEntityRecognizer
 from src.language import detect_language
 from src.learning import learn_from_exchange
 from src.markdown_format import format_for_ui as apply_ui_format
+from src.text_direction import strip_bidi_controls, text_direction_for_language
 from src.text_style import strip_long_dashes
 from src.memory import TildMemory
 from src.rag import TildRAG
@@ -28,9 +29,10 @@ class TildPipeline:
             self.model, self.tokenizer = None, None
         print("Tild pipeline ready!")
 
-    def start_session(self, clear_history=True):
+    def start_session(self, clear_history=True, language='en'):
         self.memory.start_session(clear_history=clear_history)
-        return strip_long_dashes(self.memory.greeting_for_session())
+        greeting = strip_long_dashes(self.memory.greeting_for_session(language))
+        return strip_bidi_controls(greeting)
 
     def chat_turn(
         self,
@@ -70,8 +72,17 @@ class TildPipeline:
         language = self.memory.session.get('language') or detect_language(message)
 
         response = strip_long_dashes(response)
+        if not (response or '').strip():
+            lang = language or 'en'
+            if lang == 'sv':
+                response = 'Jag fick inget svar just nu. Försök igen bro.'
+            elif lang == 'ar':
+                response = 'لم أحصل على رد واضح. حاول مرة أخرى من فضلك.'
+            else:
+                response = 'I did not get a clear reply. Please try again.'
         if format_for_ui:
             response = apply_ui_format(response)
+        response = strip_bidi_controls(response)
 
         if learn:
             if learn_from_exchange(message, response, source, rag=self.rag):
@@ -82,6 +93,7 @@ class TildPipeline:
         return {
             'response': response,
             'language': language,
+            'text_direction': text_direction_for_language(language),
             'tone': tone,
             'source': source,
             'user': self.memory.get_user_name(),
