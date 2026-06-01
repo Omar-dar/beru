@@ -1,9 +1,15 @@
+# Python deps (install: pip install -r requirements.txt)
+# System deps (not pip): Ollama for Tild's deep brain — see README or:
+#   ./scripts/install_deep_brain.sh
+
 torch
 tiktoken
 transformers
 accelerate
 sentence-transformers
 openai-whisper
+faster-whisper
+edge-tts
 sounddevice
 soundfile
 numpy
@@ -12,5 +18,6 @@ python-dotenv
 flask
 flask-cors
 requests
+wikipedia
 pymupdf
 pdfplumber
