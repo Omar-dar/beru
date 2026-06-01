@@ -7,7 +7,7 @@
   "location": "Gothenburg, Sweden",
   "languages": ["English", "Swedish", "Arabic"],
   "projects": [
-    "Tild — personal AI built from scratch with Python and PyTorch",
+    "Tild - personal AI built from scratch with Python and PyTorch",
     "Tild transformer architecture (decoder-only, GPT-style)",
     "Tild training and fine-tuning pipeline (tild_v2)",
     "Tild RAG memory system with sentence-transformers",

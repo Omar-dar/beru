@@ -119127,3 +119127,12 @@ Please provide more details about the video to help me better understand it.
 ### Human: Vet du lämnade in min C-uppsats?
 ### Tild: Ja, jag kommer ihåg att du lämnade in din C-uppsats 29 maj. Du lämnade in din C-uppsats 29 maj. Jag har sparat det i minnet.
 
+### Human: هون تتعرف اسمي؟
+### Tild: شكراً على استفسارك! اسمي تILD، وسميت على هذا الاسم من قبلك.
+
+### Human: ما اسمي؟
+### Tild: ⁧⁧حسناً، اسمك هي ⁦Omar⁩ ⁦Darwish.⁩ هل أنت متعلم في مجال الذكاء الاصطناعي؟ ⁦⁩
+
+### Human: what do you want to do today
+### Tild: I'd like to spend some time chatting with you about your day. How's it going so far?
+

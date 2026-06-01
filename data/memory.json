@@ -32,10 +32,10 @@
       "language": "en",
       "is_owner": true,
       "permanently_verified": true,
-      "last_seen": "2026-05-31T00:46:11.271482",
+      "last_seen": "2026-06-01T16:29:49.082851",
       "topics": [],
       "sessions": [],
-      "visit_count": 32
+      "visit_count": 40
     },
     "usr_56684aa7": {
       "full_name": "Sara Andersson",
@@ -161,32 +161,234 @@
       "visit_count": 1
     }
   },
-  "conversation_history": [],
+  "conversation_history": [
+    {
+      "role": "human",
+      "text": "Yes",
+      "time": "2026-06-01T16:29:44.654486"
+    },
+    {
+      "role": "tild",
+      "text": "Okay! What is the password?",
+      "time": "2026-06-01T16:29:44.660791"
+    },
+    {
+      "role": "human",
+      "text": "Yellow",
+      "time": "2026-06-01T16:29:49.081889"
+    },
+    {
+      "role": "tild",
+      "text": "Correct password! Hey Omar! What is up bro?",
+      "time": "2026-06-01T16:29:49.084217"
+    },
+    {
+      "role": "human",
+      "text": "what do you want to do today",
+      "time": "2026-06-01T16:29:52.444570"
+    },
+    {
+      "role": "tild",
+      "text": "I am an AI bro, I do not have a human day off or hobbies like chilling on projects. What I want is to talk with you and help with whatever you need. What are your plans for today?",
+      "time": "2026-06-01T16:29:52.445630"
+    },
+    {
+      "role": "human",
+      "text": "I will go to the gym today",
+      "time": "2026-06-01T16:30:17.809553"
+    },
+    {
+      "role": "tild",
+      "text": "Nice bro, sounds like a solid plan! The gym. Have a great workout when you go!",
+      "time": "2026-06-01T16:30:17.814296"
+    }
+  ],
   "learned_omar_facts": [
-    "Don't give me suggestions when I ask for code, only give me when i ask",
-    "Omar Darwish is a student in Software Engineering and Management at Göteborgs universitet",
-    "He has experience with software development through his own projects in web, mobile, and AI",
-    "He has worked on technical solutions from idea to implementation",
-    "He has experience with agile work methods through university projects and hackathons",
-    "He is motivated by problem-solving, structure, and continuous learning in software development",
-    "Omar Darwish knows several programming languages: TypeScript, JavaScript, Java, Python, Kotlin, Dart, C#, PHP, C, C++, HTML, CSS, SQL",
-    "He uses various frameworks and technologies such as React, Flutter, Unity, REST APIs, Android development, web development, distributed systems, Scrum/Agile",
-    "He uses tools like Git, GitHub, Figma, VS Code, Android Studio",
-    "Omar Darwish is currently working on the \"Tild - Experimentell språkmodell\" project",
-    "The project involves developing a decoder-only transform-based language model from scratch in Python inspired by GPT architecture",
-    "He also developed a live web application called \"Treely\" which is under active development",
-    "In another project, he implemented an IPTV player with Kotlin, React, and Typescript",
-    "Omar Darwish participated in a Unity game development hackathon and created a mini-game",
-    "He has developed several mobile applications using Flutter and Kotlin",
-    "His university education will be at Göteborgs universitet, where he is pursuing a Kandidatprogram in Software Engineering and Management from 2023 to 2026",
-    "The program focuses on software development, project management, and user-centered design",
-    "Omar Darwish has experience with programming languages such as Java, Python, JavaScript, C, C++, HTML, CSS, Kotlin",
-    "He has practical experience with Flutter and Figma through his personal projects and university projects",
-    "He has experience with agile project management, requirements handling, and software architecture",
-    "He has taken courses in distributed systems, human-computer interaction, and software quality",
-    "Omar Darwish received a 5-grade mark in the course \"Development of embedded and real-time systems\"",
-    "He worked as a server at a restaurant in Karlstad from 2020 to 2022",
-    "His job involved customer service, cash handling, and work in a multilingual environment",
-    "Omar Darwish is fluent in Swedish, English, and Arabic"
+    {
+      "text": "Don't give me suggestions when I ask for code, only give me when i ask",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "لوني المفضل هو الأزرق",
+      "saved_at": "2026-06-01T16:30",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "I submitted my university project",
+      "saved_at": "2026-06-01T12:00",
+      "date": "2026-06-01",
+      "event_date": "2026-05-29"
+    },
+    {
+      "text": "Jag lämnade in min C-uppsats",
+      "saved_at": "2026-06-01T10:00",
+      "date": "2026-06-01",
+      "event_date": "2026-05-29"
+    },
+    {
+      "text": "Omar Darwish is a student in Software Engineering and Management at Göteborgs universitet",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has experience with software development through his own projects in web, mobile, and AI",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has worked on technical solutions from idea to implementation",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has experience with agile work methods through university projects and hackathons",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He is motivated by problem-solving, structure, and continuous learning in software development",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish knows several programming languages: TypeScript, JavaScript, Java, Python, Kotlin, Dart, C#, PHP, C, C++, HTML, CSS, SQL",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He uses various frameworks and technologies such as React, Flutter, Unity, REST APIs, Android development, web development, distributed systems, Scrum/Agile",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He uses tools like Git, GitHub, Figma, VS Code, Android Studio",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish is currently working on the \"Tild - Experimentell språkmodell\" project",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "The project involves developing a decoder-only transform-based language model from scratch in Python inspired by GPT architecture",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He also developed a live web application called \"Treely\" which is under active development",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "In another project, he implemented an IPTV player with Kotlin, React, and Typescript",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish participated in a Unity game development hackathon and created a mini-game",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has developed several mobile applications using Flutter and Kotlin",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "His university education will be at Göteborgs universitet, where he is pursuing a Kandidatprogram in Software Engineering and Management from 2023 to 2026",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "The program focuses on software development, project management, and user-centered design",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish has experience with programming languages such as Java, Python, JavaScript, C, C++, HTML, CSS, Kotlin",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has practical experience with Flutter and Figma through his personal projects and university projects",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has experience with agile project management, requirements handling, and software architecture",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He has taken courses in distributed systems, human-computer interaction, and software quality",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish received a 5-grade mark in the course \"Development of embedded and real-time systems\"",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "He worked as a server at a restaurant in Karlstad from 2020 to 2022",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "His job involved customer service, cash handling, and work in a multilingual environment",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "Omar Darwish is fluent in Swedish, English, and Arabic",
+      "saved_at": "2026-06-01T15:21",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "أن لوني المفضل هو الأزرق",
+      "saved_at": "2026-06-01T16:03",
+      "date": "2026-06-01",
+      "event_date": null
+    },
+    {
+      "text": "I will go to the gym today, and then eat and chill",
+      "saved_at": "2026-06-01T16:16",
+      "date": "2026-06-01",
+      "event_date": "2026-06-01"
+    },
+    {
+      "text": "I will go to the gym today",
+      "saved_at": "2026-06-01T16:30",
+      "date": "2026-06-01",
+      "event_date": "2026-06-01"
+    }
   ]
 }
