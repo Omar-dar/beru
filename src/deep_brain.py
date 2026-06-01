@@ -58,11 +58,19 @@ class DeepBrain:
     def ask(self, user_input, language="en", tone="formal", memory=None, document_context=""):
         from src.language import detect_language
 
-        language = detect_language(user_input)
+        detected = detect_language(user_input)
+        if language and len((user_input or '').strip()) <= 12:
+            pass
+        else:
+            language = detected or language or 'en'
 
         language_instruction = {
             'sv': 'Användaren skrev på SVENSKA. Du MÅSTE svara på svenska. ALDRIG engelska eller arabiska.',
-            'ar': 'المستخدم كتب بالعربية. يجب أن تجيب بالعربية فقط.',
+            'ar': (
+                'المستخدم كتب بالعربية. يجب أن تجيب بالعربية فقط. '
+                'استخدم "عمر" و"عمر دارويش" وليس Omar بالإنجليزية. '
+                'اذكر التاريخ كاملاً (مثل 29 مايو 2026) وليس السنة فقط إن كان معروفاً.'
+            ),
             'en': 'The user wrote in ENGLISH. You MUST reply in English ONLY. Never use Swedish or Arabic.',
         }
 
@@ -70,7 +78,10 @@ class DeepBrain:
             tone = 'bro'
 
         if tone == 'bro':
-            personality = """You ARE Tild, talking directly to Omar Darwish  -  your creator, owner, and best friend.
+            omar_label = 'Omar Darwish'
+            if language == 'ar':
+                omar_label = 'عمر دارويش (عمر)'
+            personality = f"""You ARE Tild, talking directly to {omar_label}  -  your creator, owner, and best friend.
 Talk like a close bro. Casual, warm, and supportive when appropriate.
 ALWAYS use "you" when speaking to him. NEVER refer to Omar in the third person.
 Never be formal with Omar. He built you from scratch.
@@ -314,6 +325,20 @@ Facts:"""
             return "Sorry bro, I should have replied in English. Could you ask that again?"
         if language == 'sv' and has_ar:
             return "Förlåt, jag ska svara på svenska. Kan du fråga igen?"
-        if language == 'ar' and (has_sv or not has_ar):
-            pass
+        if language == 'ar' and not has_ar:
+            return (
+                'عذراً، كان يجب أن أجيب بالعربية. '
+                'هل يمكنك إعادة سؤالك؟'
+            )
+        if language == 'ar' and has_sv and not has_ar:
+            return (
+                'عذراً، كان يجب أن أجيب بالعربية فقط. '
+                'هل يمكنك إعادة سؤالك؟'
+            )
+        if not answer or not str(answer).strip():
+            if language == 'ar':
+                return 'لم أحصل على رد واضح. حاول مرة أخرى من فضلك.'
+            if language == 'sv':
+                return 'Jag fick inget tydligt svar. Försök igen bro.'
+            return 'I did not get a clear reply. Please try again.'
         return answer

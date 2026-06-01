@@ -33,6 +33,7 @@ Use this document in the **tild-ui** repo so the GUI matches the **tild** API ba
 {
   "response": "markdown-friendly reply",
   "language": "en",
+  "text_direction": "ltr",
   "tone": "bro",
   "source": "brain",
   "user": "Omar",
@@ -41,6 +42,10 @@ Use this document in the **tild-ui** repo so the GUI matches the **tild** API ba
   "active_document": { "id": "...", "filename": "..." }
 }
 ```
+
+`text_direction` is `"rtl"` when `language` is `"ar"`. **tild-ui must set `dir="rtl"`** (and ideally `text-align: right`) on the message bubble when `text_direction === "rtl"`. Do not inject Unicode bidi control characters into `response` — the UI renders them as visible junk (e.g. ⁧ ⁩).
+
+`GET /start?language=ar` and `POST /clear` also return `text_direction` for the greeting.
 
 `source` values: `gate`, `memory`, `knowledge`, `rag`, `search`, `brain`, `document`, `correction`, `fallback`, `analysis`.
 

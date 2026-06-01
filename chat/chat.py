@@ -10,7 +10,14 @@ from src.memory import TildMemory
 from src.search import TildSearch
 from src.entities import TildEntityRecognizer
 from src.deep_brain import DeepBrain
-from src.language import detect_language, resolve_turn_language
+from src.language import (
+    detect_arabic_name,
+    detect_language,
+    is_arabic_greeting,
+    is_arabic_question,
+    is_arabic_text,
+    resolve_turn_language,
+)
 from src.router import (
     route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS,
 )
@@ -69,6 +76,10 @@ def detect_name(user_input_lower):
 
     if TildMemory.looks_like_yes_or_no(user_input_lower):
         return None
+
+    arabic_name = detect_arabic_name(user_input_lower)
+    if arabic_name:
+        return arabic_name
 
     if 'omar darwish' in user_input_lower:
         return OWNER_NAME
@@ -184,6 +195,7 @@ QUESTION_PHRASES = (
     'vet du vad', 'kan du', 'do you know', 'what did i', 'what have i',
     'vad gjorde jag', 'vad har jag gjort', 'gjorde jag idag', 'gjort jag idag',
     'vad jag gjorde', 'what i did today', 'did i do today',
+    'كيف حالك', 'كيف حالكم', 'كيف انت', 'كيف أنت', 'ماذا', 'من انت', 'من أنت',
 )
 
 
@@ -197,6 +209,8 @@ def looks_like_question(text_lower):
     if any(text.startswith(s) for s in QUESTION_STARTERS):
         return True
     if any(p in text for p in QUESTION_PHRASES):
+        return True
+    if is_arabic_question(text):
         return True
     try:
         from src.document_index import TildDocumentIndex
@@ -230,6 +244,14 @@ def detect_full_name(user_input_lower):
     from src.memory import GREETING_WORDS, OWNER_NAME
 
     if looks_like_question(user_input_lower):
+        return None
+
+    if is_arabic_text(user_input_lower):
+        if is_arabic_greeting(user_input_lower) or is_arabic_question(user_input_lower):
+            return None
+        explicit = detect_arabic_name(user_input_lower)
+        if explicit and ' ' in explicit:
+            return explicit
         return None
 
     if 'omar darwish' in user_input_lower:
@@ -338,7 +360,7 @@ def get_response(
         user_input,
         hint=language_hint,
         session_language=memory.session.get('language'),
-        in_gate=in_gate,
+        in_gate=in_gate or not memory.is_session_identified(),
     )
     memory.session['language'] = language
     user_input_lower = user_input.lower()
@@ -393,8 +415,14 @@ def get_response(
 
         # Waiting for Omar to confirm identity
         if memory.is_awaiting_owner_confirm():
-            detected_name = detect_name(user_input_lower)
+            detected_name = detect_name(user_input_lower) or detect_arabic_name(user_input)
             full_name = detect_full_name(user_input_lower)
+
+            if is_arabic_text(user_input) and (
+                is_arabic_greeting(user_input) or is_arabic_question(user_input)
+            ):
+                if not memory.is_affirmative(user_input) and detected_name != 'Omar':
+                    return memory.answer_arabic_gate_small_talk(user_input, language), 'gate'
 
             if memory.is_affirmative(user_input) or detected_name == 'Omar':
                 memory.clear_awaiting_owner_confirm()
@@ -483,6 +511,12 @@ def get_response(
     if memory.is_name_question(user_input):
         return memory.answer_name_question(language), 'memory'
 
+    if memory.is_owner() and memory.is_when_day_detail_followup(user_input):
+        return memory.answer_when_day_detail_followup(language), 'memory'
+
+    if memory.is_owner() and memory.is_owner_when_question(user_input):
+        return memory.answer_owner_when_question(user_input, language), 'memory'
+
     if memory.is_trust_question(user_input):
         return memory.answer_trust_question(language), 'memory'
 
@@ -500,6 +534,8 @@ def get_response(
             return memory.handle_forget_instruction(user_input, language), 'memory'
         if memory.is_omar_remember_instruction(user_input):
             return memory.handle_remember_instruction(user_input, language), 'memory'
+        if memory.is_owner_memory_statement(user_input):
+            return memory.handle_owner_memory_statement(user_input, language), 'memory'
         if memory.is_omar_recall_instructions(user_input):
             return memory.answer_omar_recall_instructions(language), 'memory'
 
@@ -513,7 +549,7 @@ def get_response(
         return memory.answer_casual_reply(language), 'memory'
 
     if memory.is_tild_activity_question(user_input):
-        return memory.answer_tild_activity_question(language), 'memory'
+        return memory.answer_tild_activity_question(user_input, language), 'memory'
 
     if memory.is_tild_experience_question(user_input):
         return memory.answer_tild_experience_question(language), 'memory'

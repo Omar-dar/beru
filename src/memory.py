@@ -5,9 +5,16 @@ import re
 import uuid
 from datetime import datetime
 
-from src.knowledge import TildKnowledge, OWNER_NAME, OWNER_FULL_NAME
+from src.knowledge import (
+    TildKnowledge,
+    OWNER_NAME,
+    OWNER_FULL_NAME,
+    owner_display_name,
+)
+from src.fact_i18n import attach_event_date_by_topics, when_reply_for_fact
 from src.omar_facts import (
     fact_text,
+    facts_matching_when_query,
     facts_on_date,
     format_event_date,
     format_now,
@@ -35,7 +42,21 @@ NAME_TRIGGERS = [
     'what is my name', 'vad heter jag', 'do you know my name',
     'vet du vad jag heter', 'kommer du ihåg mitt namn',
     'do you remember my name', 'whats my name', "what's my name",
+    'ما اسمي', 'ما هو اسمي', 'اسمي', 'تعرف اسمي',
 ]
+
+OWNER_WHEN_QUESTION_TRIGGERS = [
+    'when did i', 'when was i', 'when have i', 'when do i', 'when i ',
+    'what day did i', 'what date did i', 'which day did i',
+    'när lämnade', 'när skickade', 'när gjorde', 'när var', 'när hade',
+    'vilken dag', 'vilket datum', 'vilket år',
+    'متى', 'في أي يوم', 'أي يوم', 'تاريخ',
+]
+
+WHEN_DAY_DETAIL_TRIGGERS = frozenset({
+    'يوم', 'اليوم', 'day', 'the day', 'datum', 'datumet',
+    'vilken dag', 'which day', 'date', 'the date',
+})
 
 CORRECTION_STOPWORDS = {
     'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been',
@@ -122,7 +143,14 @@ OMAR_REMEMBER_TRIGGERS = [
     'never forget', 'so remember', 'and remember', 'memorize this', 'store this',
     'save this', 'note that', 'note this',
     'kom ihåg att', 'kom ihåg det', 'kom ihåg detta', 'glöm inte',
+    'تذكر', 'تذكري', 'احفظ', 'احفظي', 'لا تنس',
 ]
+
+OWNER_MEMORY_STATEMENT_ACTIONS = (
+    'سلمت', 'قدمت', 'أنجزت', 'ذهبت', 'زرت',
+    'submitted', 'handed', 'turned in', 'went', 'did', 'finished',
+    'lämnade', 'lamnade', 'gjorde', 'åt', 'tränade', 'chillade', 'pluggade',
+)
 
 OMAR_FORGET_TRIGGERS = [
     'forget that', 'forget this', 'forget about', 'forget it',
@@ -666,7 +694,10 @@ class TildMemory:
 
     @classmethod
     def _normalize_confirm_words(cls, text):
+        from src.language import is_arabic_text
         normalized = cls._normalize_confirm_text(text)
+        if is_arabic_text(text):
+            return normalized
         return ' '.join(cls._collapse_repeats(word) for word in normalized.split())
 
     @classmethod
@@ -690,6 +721,8 @@ class TildMemory:
         yes_words = {
             'yes', 'yeah', 'yep', 'yea', 'yup', 'y', 'correct', 'ja', 'japp', 'javisst',
             'yas', 'yah', 'uh huh', 'mhm', 'mm', 'sure',
+            'نعم', 'نعم.', 'أيوه', 'ايوه', 'أجل', 'اجل', 'صح', 'صحيح', 'اه', 'أه',
+            'اي', 'إي', 'يا', 'هيه', 'ماشي',
         }
         if t in yes_words:
             return True
@@ -699,22 +732,41 @@ class TildMemory:
             'yes it is', 'that is me', 'it is me', 'thats me', "that's me",
             'i am omar', "i'm omar", 'im omar', 'det är jag', 'ja det är jag',
             'yes i am omar', 'yeah its me', 'it is omar', 'its omar', "it's omar",
+            'انا عمر', 'أنا عمر', 'نعم انا عمر', 'نعم أنا عمر', 'نعم عمر',
         ]
-        return any(p in t for p in phrases)
+        raw = text.strip()
+        if any(p in t for p in phrases) or any(p in raw for p in phrases):
+            return True
+        return False
 
     def is_negative(self, text):
         t = self._normalize_confirm_words(text)
-        no_words = {'no', 'nope', 'nah', 'nej', 'n', 'noo', 'nuh'}
+        no_words = {
+            'no', 'nope', 'nah', 'nej', 'n', 'noo', 'nuh',
+            'لا', 'لأ', 'مو', 'مش', 'كلا',
+        }
         if t in no_words:
             return True
         phrases = ['not me', 'someone else', 'not omar', 'inte jag', 'nej det', 'no im not', "no i'm not"]
         return any(p in t for p in phrases)
 
+    def answer_arabic_gate_small_talk(self, text, language='ar'):
+        """Arabic greeting/small talk while waiting for Omar to confirm."""
+        if self.is_awaiting_owner_confirm():
+            return (
+                'أهلاً! أنا بخير، شكراً لسؤالك. أنا تيلد. '
+                'هل أنت عمر؟ قل نعم وسأسألك عن كلمة المرور.'
+            )
+        return (
+            'مرحباً! أنا Tild. قبل أن نتابع، من أتحدث معه؟ '
+            'قل اسمك الكامل أو قل نعم إذا كنت Omar.'
+        )
+
     def ask_owner_confirm_again(self, language='en'):
         if language == 'sv':
             return 'Säg ja om du är Omar, eller berätta vad du heter.'
         if language == 'ar':
-            return 'قل نعم إذا كنت Omar، أو أخبرني اسمك.'
+            return 'قل نعم إذا كنت Omar، أو أخبرني اسمك الكامل.'
         return 'Say yes if you are Omar, or tell me your name.'
 
     def ask_owner_password(self, language='en'):
@@ -1001,7 +1053,8 @@ class TildMemory:
             if language == 'sv':
                 return f'Självklart! Du är {OWNER_NAME}, min skapare och bästa kompis!'
             if language == 'ar':
-                return f'بالطبع! أنت {OWNER_NAME}، من أنشأني وأفضل صديق لي!'
+                name = owner_display_name('ar')
+                return f'بالطبع! أنت {name}، من أنشأني وأفضل صديق لي!'
             return f'Of course! You are {OWNER_NAME}, my creator and best bro!'
 
         name = self.get_user_full_name() or self.get_user_name()
@@ -1019,7 +1072,8 @@ class TildMemory:
             if language == 'sv':
                 return f'Du heter {OWNER_NAME}! Du är min skapare och du byggde mig från grunden.'
             if language == 'ar':
-                return f'اسمك {OWNER_NAME}! أنت من أنشأني وبنيتني من الصفر.'
+                name = owner_display_name('ar', full=True)
+                return f'اسمك {name}! أنت من أنشأني وبنيتني من الصفر.'
             return f'Your name is {OWNER_NAME}! You are my creator and you built me from scratch.'
 
         name = self.get_user_full_name() or self.get_user_name()
@@ -1107,22 +1161,36 @@ class TildMemory:
             return False
         return any(trigger in text_lower for trigger in OMAR_RECALL_INSTRUCTIONS_TRIGGERS)
 
+    @staticmethod
+    def _strip_remember_leadin(fact):
+        """Remove 'that/att/أن' after remember triggers."""
+        s = (fact or '').strip().strip('.,;:')
+        for pat in (
+            r'^أن\s+',
+            r'^att\s+',
+            r'^that\s+',
+            r'^this\s+',
+            r'^to\s+',
+        ):
+            s = re.sub(pat, '', s, flags=re.I).strip()
+        return s
+
     def extract_remember_instruction(self, text):
         text_lower = text.lower()
         for trigger in sorted(OMAR_REMEMBER_TRIGGERS, key=len, reverse=True):
             if trigger in text_lower:
                 idx = text_lower.find(trigger)
-                before = text[:idx].strip().strip('.,;:')
+                before = self._strip_remember_leadin(text[:idx])
                 before = re.sub(r'\bso\s*$', '', before, flags=re.I).strip(' .,:;')
                 if before and len(before) > 4:
                     return before[0].upper() + before[1:]
-                after = text[idx + len(trigger):].strip().strip('.,;:')
+                after = self._strip_remember_leadin(text[idx + len(trigger):])
                 if after and len(after) > 3:
                     return after[0].upper() + after[1:]
         cleaned = text
         for trigger in OMAR_REMEMBER_TRIGGERS:
             cleaned = re.sub(re.escape(trigger), '', cleaned, flags=re.I)
-        cleaned = cleaned.strip(' .,:;')
+        cleaned = self._strip_remember_leadin(cleaned)
         return cleaned if len(cleaned) > 4 else None
 
     def extract_forget_hint(self, text):
@@ -1172,6 +1240,79 @@ class TildMemory:
         self.knowledge.set_learned_facts(self.learned_omar_facts)
         self.save_memory()
         return removed
+
+    def is_owner_memory_statement(self, text):
+        if not self.is_owner():
+            return False
+        if '?' in text or '؟' in text:
+            return False
+        if self.is_omar_remember_instruction(text) or self.is_omar_forget_instruction(text):
+            return False
+        if self.is_owner_when_question(text):
+            return False
+        tl = text.lower()
+        if not any(m in tl for m in OWNER_MEMORY_STATEMENT_ACTIONS):
+            return False
+        return bool(parse_calendar_date(text) or infer_event_date_from_text(text))
+
+    @staticmethod
+    def _strip_embedded_date_clause(text):
+        """Remove trailing calendar phrase; keep the activity sentence."""
+        patterns = [
+            r'\s+يوم\s+\d{1,2}\s+(?:يناير|فبراير|مارس|أبريل|ابريل|مايو|ماي|يونيو|يوليو|'
+            r'أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر)(?:\s+\d{4})?',
+            r'\s+(?:on|den)\s+\d{1,2}\s+'
+            r'(?:jan(?:uary|uari)?|feb(?:ruary|uari)?|mar(?:ch|s)?|apr(?:il)?|'
+            r'may|maj|jun(?:e|i)?|jul(?:y|i)?|aug(?:ust)?|sep(?:t)?|oct(?:ober)?|okt(?:ober)?|'
+            r'nov(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?',
+            r'\s+\d{1,2}\s+(?:jan(?:uary|uari)?|feb(?:ruary|uari)?|mar(?:ch|s)?|apr(?:il)?|'
+            r'may|maj|jun(?:e|i)?|jul(?:y|i)?|aug(?:ust)?|sep(?:t)?|oct(?:ober)?|okt(?:ober)?|'
+            r'nov(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?',
+        ]
+        out = text.strip().strip('.')
+        for pat in patterns:
+            out = re.sub(pat, '', out, flags=re.I).strip()
+        return out or text.strip()
+
+    def handle_owner_memory_statement(self, text, language='en'):
+        """Save 'I submitted X on May 29' style messages with event_date."""
+        explicit = parse_calendar_date(text)
+        event_iso = explicit.isoformat() if explicit else infer_event_date_from_text(text)
+        if not event_iso:
+            if language == 'ar':
+                return 'لم أفهم التاريخ. قل مثلاً: سلمت المشروع يوم 29 مايو.'
+            return 'I did not catch the date bro. Say e.g. submitted the project on May 29.'
+
+        updated = update_facts_event_date(
+            self.learned_omar_facts,
+            event_iso,
+            text_hint=text,
+        )
+        if not updated:
+            updated = attach_event_date_by_topics(
+                self.learned_omar_facts, event_iso, text
+            )
+        if updated:
+            entry = updated[-1]
+        else:
+            fact = self._strip_embedded_date_clause(text)
+            entry = new_fact_entry(fact)
+            entry['event_date'] = event_iso
+            self.add_omar_fact(entry)
+
+        self.knowledge.set_learned_facts(self.learned_omar_facts)
+        self.save_memory()
+
+        when = format_date_for_language(event_iso, language)
+        if language == 'sv':
+            return f'Okej bro! Jag sparade att det var {when}: {fact_text(entry)}.'
+        if language == 'ar':
+            core = self._strip_embedded_date_clause(text)
+            return (
+                f'حسناً! حفظت في ذاكرتي أنك {core} في {when}. '
+                f'اسألني "متى سلمت مشروع الجامعة؟" متى أردت.'
+            )
+        return f'Got it bro! Saved for {when}: {fact_text(entry)}.'
 
     def handle_remember_instruction(self, text, language='en'):
         fact = self.extract_remember_instruction(text)
@@ -1376,8 +1517,10 @@ class TildMemory:
     def is_tild_activity_question(self, text):
         return self.knowledge.is_tild_activity_question(text)
 
-    def answer_tild_activity_question(self, language='en'):
-        return self.knowledge.answer_tild_activity_question('', language, memory=self)
+    def answer_tild_activity_question(self, user_input='', language='en'):
+        return self.knowledge.answer_tild_activity_question(
+            user_input, language, memory=self
+        )
 
     def answer_tild_experience_question(self, language='en'):
         return self.knowledge.answer_tild_experience_question('', language, memory=self)
@@ -1836,6 +1979,11 @@ class TildMemory:
                     f'När du säger relativa datum räknar jag från dagens datum ({format_now("sv")}).'
                 )
             return f'Okej! Jag noterade datumet {when}.'
+        if language == 'ar':
+            if updated:
+                fact = fact_text(updated[-1])
+                return f'حسناً! حفظت أن ذلك كان في {when}: {fact}.'
+            return f'حسناً! سجلت التاريخ {when}.'
         if updated:
             fact = fact_text(updated[-1])
             return f'Got it bro! That happened on {when}: {fact}.'
@@ -1847,6 +1995,104 @@ class TildMemory:
 
     def answer_time_question(self, language='en'):
         return format_now(language)
+
+    def is_owner_when_question(self, text):
+        if not self.is_owner():
+            return False
+        text_lower = text.lower()
+        if any(t in text_lower for t in ('what time', 'vad är klockan', 'كم الساعة')):
+            return False
+        return any(t in text_lower for t in OWNER_WHEN_QUESTION_TRIGGERS)
+
+    def is_when_day_detail_followup(self, text):
+        if not self.is_owner():
+            return False
+        tl = text.strip().lower().strip('.!,?؛')
+        if tl not in WHEN_DAY_DETAIL_TRIGGERS:
+            return False
+        recent = self.conversation_history[-6:]
+        combined = ' '.join(
+            m['text'].lower() for m in recent if m.get('role') == 'tild'
+        )
+        markers = (
+            'متى', 'when', 'när', 'عام', 'year', 'år', 'تاريخ', 'date',
+            'سلمت', 'submitted', 'lämnade', 'مشروع', 'project',
+        )
+        return any(m in combined for m in markers)
+
+    def _when_query_from_history(self):
+        for m in reversed(self.conversation_history):
+            if m.get('role') == 'human' and self.is_owner_when_question(m['text']):
+                return m['text']
+        return ''
+
+    def answer_owner_when_question(self, text, language='en', *, day_detail=False):
+        query = text or self._when_query_from_history()
+        matches = facts_matching_when_query(self.learned_omar_facts, query)
+
+        if not matches:
+            if language == 'sv':
+                return (
+                    'Jag har inget exakt datum sparat för det bro. '
+                    'Säg t.ex. "jag lämnade in uppsatsen den 29 maj" så sparar jag dagen.'
+                )
+            if language == 'ar':
+                return (
+                    'ما عندي تاريخ محدد محفوظ لهذا. '
+                    'قل لي متى حصل، مثل: سلمت مشروع الجامعة في 29 مايو، وسأحفظ اليوم.'
+                )
+            return (
+                'I do not have an exact date saved for that bro. '
+                'Tell me when it happened, e.g. "I submitted the project on May 29", '
+                'and I will save the day.'
+            )
+
+        entry = matches[0]
+        reply = when_reply_for_fact(entry, language, day_detail=day_detail)
+        if reply:
+            return reply
+        when = format_event_date(entry, language)
+        if when:
+            if language == 'sv':
+                if day_detail:
+                    return f'Datumet var {when}.'
+                return f'Det var {when} bro.'
+            if language == 'ar':
+                if day_detail:
+                    return f'التاريخ كان {when}.'
+                return f'حسب ذاكرتي، كان ذلك في {when}.'
+            if day_detail:
+                return f'The date was {when}.'
+            return f'According to my memory, that was on {when}.'
+
+        import re
+        fact = fact_text(entry)
+        year_m = re.search(r'\b(20\d{2})\b', fact)
+        if language == 'sv':
+            if year_m:
+                return (
+                    f'Jag vet bara att det nämns år {year_m.group(1)} i minnet, '
+                    f'inte vilken dag. Säg exakt datum så sparar jag det.'
+                )
+            return 'Jag har fakta sparat men inget kalenderdatum för det ännu bro.'
+        if language == 'ar':
+            if year_m:
+                return (
+                    f'أعرف من سيرتك أن الأمر مرتبط بعام {year_m.group(1)}، '
+                    f'لكن لا يوجد يوم محدد محفوظ. قل لي التاريخ الكامل وسأحفظه.'
+                )
+            return 'عندي معلومة محفوظة لكن بدون تاريخ يوم محدد. قل لي التاريخ وسأحفظه.'
+        if year_m:
+            return (
+                f'I only know the year {year_m.group(1)} from memory, not the exact day. '
+                f'Tell me the full date and I will save it.'
+            )
+        return 'I have something saved but no calendar date for it yet bro.'
+
+    def answer_when_day_detail_followup(self, language='en'):
+        return self.answer_owner_when_question(
+            self._when_query_from_history(), language, day_detail=True
+        )
 
     @staticmethod
     def is_today_activity_question(text):
@@ -2064,38 +2310,10 @@ class TildMemory:
         return 'been busy'
 
     def _reply_after_today_narration(self, text, language='en'):
-        """Friendly ack + follow-up; fact is saved silently."""
-        tl = text.lower()
-        gym = any(w in tl for w in ('gym', 'gymmet', 'rygg', 'cardio', 'trän', 'trained'))
-        chill = any(w in tl for w in ('chill', 'chillat', 'chilled', 'koppla av'))
+        """Friendly ack + follow-up; respects order and future vs past tense."""
+        from src.day_plan import reply_to_day_message
 
-        if language == 'sv':
-            if gym and chill:
-                return (
-                    'Härligt bro, låter som en bra dag! Chill först och sen gym. '
-                    'Hur kändes ryggpasset?'
-                )
-            if gym:
-                return 'Nice med gym idag! Hur var passet, nöjd med det?'
-            if chill:
-                return 'Skönt med en chill dag! Gjorde du något mer efteråt?'
-            return 'Okej nice! Berätta mer, hur har dagen varit?'
-
-        if language == 'ar':
-            if gym:
-                return 'حلو! يوم فيه جيم. كيف كان التمرين؟'
-            return 'تمام! كيف كان يومك بشكل عام؟'
-
-        if gym and chill:
-            return (
-                'Nice bro, sounds like a solid day! Chill first then the gym. '
-                'How did the workout feel?'
-            )
-        if gym:
-            return 'Nice, gym day! How was the session?'
-        if chill:
-            return 'Chill day, I like it! Did you do anything else after?'
-        return 'Nice! Tell me more, how has the day been?'
+        return reply_to_day_message(text, language)
 
     def handle_owner_today_narration(self, text, language='en'):
         from datetime import date
@@ -2246,7 +2464,8 @@ class TildMemory:
         if language == 'sv':
             return 'Rätt lösenord! Tjena Omar! Vad händer kompis?'
         if language == 'ar':
-            return 'كلمة المرور صحيحة! أهلاً Omar! كيف حالك يا صديقي؟'
+            name = owner_display_name('ar')
+            return f'كلمة المرور صحيحة! أهلاً {name}! كيف حالك يا صديقي؟'
         return 'Correct password! Hey Omar! What is up bro?'
 
     def set_active_document(self, doc_id, filename):

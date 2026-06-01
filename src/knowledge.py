@@ -2,10 +2,18 @@ import json
 import os
 import re
 
-from src.omar_facts import fact_text, owner_fact_for_reply
+from src.omar_facts import detect_fact_language, fact_text, owner_fact_for_reply
 
 OWNER_NAME = 'Omar'
 OWNER_FULL_NAME = 'Omar Darwish'
+OWNER_NAME_AR = 'عمر'
+OWNER_FULL_NAME_AR = 'عمر دارويش'
+
+
+def owner_display_name(language='en', *, full=False):
+    if language == 'ar':
+        return OWNER_FULL_NAME_AR if full else OWNER_NAME_AR
+    return OWNER_FULL_NAME if full else OWNER_NAME
 
 TILD_IDENTITY_PATH = 'data/tild_identity.json'
 OMAR_PROFILE_PATH = 'data/omar_profile.json'
@@ -19,6 +27,9 @@ OMAR_PERSONAL_TRIGGERS = [
     'what do you know about omar', 'do you know omar', 'omar full name',
     'vad vet du om mig', 'berätta om mig', 'var studerar jag',
     'vilket universitet', 'mina projekt', 'berätta om omar', 'vem är omar',
+    'ما اسمي', 'اسمي', 'ما هو اسمي', 'من أنا', 'عن نفسي', 'ماذا تعرف عني',
+    'متى سلمت', 'مشروع الجامعة', 'مشروع جامعة', 'الجامعة',
+    'favoritfärg', 'favorite color', 'min favoritfärg', 'ما لوني', 'لوني المفضل',
 ]
 
 OWNER_SELF_TRIGGERS = [
@@ -59,6 +70,8 @@ TILD_ACTIVITY_TRIGGERS = [
     'what are you doing', 'whatcha doing', 'what you doing', 'what u doing',
     'what are you up to', 'what you up to', 'what are u doing', 'what r u doing',
     'vad gör du', 'vad håller du på med',
+    'what do you want to do', 'what would you like to do', 'what you want to do',
+    'what are you going to do today', 'vad vill du göra', 'ماذا تريد أن تفعل',
 ]
 
 SEARCH_BLOCK_TRIGGERS = OMAR_PERSONAL_TRIGGERS + TILD_SELF_TRIGGERS + [
@@ -135,14 +148,34 @@ class TildKnowledge:
         ]
         return any(h in text_lower for h in hints)
 
+    @staticmethod
+    def _is_owner_dated_statement(text):
+        """Past-tense fact with a calendar date — save as memory, not Q&A."""
+        if '?' in text or '؟' in text:
+            return False
+        from src.relative_dates import infer_event_date_from_text, parse_calendar_date
+
+        tl = text.lower()
+        if not (parse_calendar_date(text) or infer_event_date_from_text(text)):
+            return False
+        action_markers = (
+            'سلمت', 'قدمت', 'أنجزت', 'ذهبت', 'ذهب', 'زرت',
+            'submitted', 'handed', 'turned in', 'went', 'did',
+            'lämnade', 'lamnade', 'gjorde', 'åt', 'tränade', 'chillade',
+        )
+        return any(m in tl for m in action_markers)
+
     def is_omar_personal_question(self, text, is_owner=False):
         text_lower = text.lower()
         if is_owner:
             teaching_triggers = [
                 'remember that', 'remember this', 'forget that', 'forget this',
                 'forget it', 'keep in mind', "don't forget", 'dont forget',
+                'تذكر', 'احفظ',
             ]
             if any(t in text_lower for t in teaching_triggers):
+                return False
+            if self._is_owner_dated_statement(text):
                 return False
 
         if self.is_asking_about_omar(text):
@@ -156,6 +189,7 @@ class TildKnowledge:
                     'university', 'degree', 'study', 'project', 'build', 'built',
                     'milestone', 'job', 'work', 'name', 'from', 'live',
                     'universitet', 'studera', 'projekt', 'heter', 'bor',
+                    'favorit', 'favorite', 'färg', 'color', 'colour', 'لون', 'food', 'mat',
                 ]
                 if any(h in text_lower for h in personal_hints):
                     return True
@@ -220,8 +254,9 @@ class TildKnowledge:
         )
         for learned in (learned_facts or self.learned_omar_facts):
             raw = fact_text(learned)
-            lang = 'sv' if re.search(r'\b(jag|min|mig)\b', raw, re.I) else 'en'
-            lines.append(f"- Omar memory: {owner_fact_for_reply(raw, lang)}")
+            lines.append(
+                f"- Omar memory: {owner_fact_for_reply(raw, detect_fact_language(raw))}"
+            )
         return '\n'.join(lines)
 
     @staticmethod
@@ -255,7 +290,7 @@ class TildKnowledge:
             (r'\byou works\b', 'you work'),
         ):
             out = re.sub(wrong, right, out, flags=re.I)
-        out = owner_fact_for_reply(out, 'sv' if re.search(r'\b(jag|min|mig)\b', out, re.I) else 'en')
+        out = owner_fact_for_reply(out, detect_fact_language(text))
         if out and out[0].islower():
             out = out[0].upper() + out[1:]
         return out
@@ -279,7 +314,13 @@ class TildKnowledge:
             "don't", 'dont', 'only give', 'when i ask', 'when you ask',
             'never give', 'no suggestions', 'remember that', 'keep in mind',
         )
-        return any(m in fl for m in instruction_markers)
+        if any(m in fl for m in instruction_markers):
+            return True
+        if len(fact) < 90 and any(
+            m in fl or m in fact for m in ('favorit', 'favorite', 'färg', 'لون', 'مفضل')
+        ):
+            return True
+        return False
 
     @classmethod
     def _split_learned_facts(cls, facts):
@@ -509,8 +550,14 @@ class TildKnowledge:
         )
 
     def answer_omar_question(self, text, language='en', learned_facts=None):
+        from src.fact_i18n import match_personal_memory_fact, reply_from_personal_fact
+
         text_lower = text.lower()
         facts = learned_facts or self.learned_omar_facts
+
+        personal = match_personal_memory_fact(facts, text)
+        if personal:
+            return reply_from_personal_fact(personal, language)
 
         category = self.detect_owner_detail_category(text)
         if category:
@@ -691,8 +738,24 @@ class TildKnowledge:
             return facts[0]
         return None
 
+    def _is_tild_wants_today_question(self, text):
+        if not text:
+            return False
+        tl = text.lower()
+        want_phrases = (
+            'want to do', 'would you like to do', 'wanna do', 'going to do today',
+            'vill du göra', 'vad vill du', 'ماذا تريد',
+        )
+        today_words = ('today', 'idag', 'اليوم')
+        if any(p in tl for p in want_phrases):
+            return any(t in tl for t in today_words) or 'want to do' in tl
+        return False
+
     def answer_tild_activity_question(self, text, language='en', memory=None):
-        """Casual 'what are you doing'  -  current session context, not identity."""
+        """What Tild is doing / wants  -  honest AI, no human hobbies or feelings."""
+        if self._is_tild_wants_today_question(text):
+            return self._answer_tild_wants_today(text, language, memory)
+
         if memory and memory.is_owner():
             if language == 'sv':
                 return 'Pratar med dig just nu bro, redo att hjälpa till med vad som helst!'
@@ -706,6 +769,42 @@ class TildKnowledge:
         if language == 'ar':
             return f'أتحدث معك الآن يا {name}، ومستعد للمساعدة.'
         return f'I am here chatting with you, {name}, ready to help with whatever you need.'
+
+    def _answer_tild_wants_today(self, text, language='en', memory=None):
+        """Do not invent projects, chill plans, or assumptions about the user's week."""
+        is_owner = memory is not None and memory.is_owner()
+        if language == 'sv':
+            if is_owner:
+                return (
+                    'Jag är en AI bro, jag har ingen riktig dag som du. '
+                    'Det jag vill mest är prata med dig och hjälpa dig med det du behöver. '
+                    'Vad har du för planer idag?'
+                )
+            return (
+                'Jag är en AI-assistent, jag har ingen mänsklig dag. '
+                'Jag är här för att prata och hjälpa till. Vad vill du göra idag?'
+            )
+        if language == 'ar':
+            if is_owner:
+                return (
+                    'أنا ذكاء اصطناعي يا صديقي، ليس لي يوم كالبشر. '
+                    'أريد أن أتحدث معك وأساعدك فيما تحتاج. '
+                    'ما خططك اليوم؟'
+                )
+            return (
+                'أنا مساعد ذكاء اصطناعي، ليس لي يوم كالبشر. '
+                'أنا هنا للمحادثة والمساعدة. ماذا تريد أن تفعل اليوم؟'
+            )
+        if is_owner:
+            return (
+                "I am an AI bro, I do not have a human day off or hobbies like chilling on projects. "
+                "What I want is to talk with you and help with whatever you need. "
+                "What are your plans for today?"
+            )
+        return (
+            "I am an AI assistant. I do not have personal plans like a person would. "
+            "I am here to chat and help you. What would you like to do today?"
+        )
 
     def answer_tild_experience_question(self, text, language='en', memory=None):
         activity = ''
@@ -753,5 +852,10 @@ class TildKnowledge:
         if language == 'sv':
             return f"Det vet jag inte säkert ännu. Jag hittar inte {about} i minnet."
         if language == 'ar':
-            return f"لا أعرف ذلك بشكل مؤكد بعد. لا أجد {about} في ذاكرتي."
+            about_ar = {
+                'that': 'ذلك',
+                'that about Omar': 'معلومات عن ذلك',
+                'that about myself': 'معلومات عن نفسي',
+            }.get(about, about)
+            return f"لا أعرف ذلك بشكل مؤكد بعد. لا أجد {about_ar} في ذاكرتي."
         return f"I do not know that for certain yet. I do not have {about} stored in my memory."
