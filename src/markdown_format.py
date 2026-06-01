@@ -3,6 +3,8 @@
 import re
 import textwrap
 
+from src.text_style import strip_long_dashes
+
 # Training-data leaks that break UI rendering
 _TRAINING_MARKERS = re.compile(r'^### (Human|Tild):\s*', re.MULTILINE)
 
@@ -47,6 +49,7 @@ def format_response_for_ui(text):
     text = _TRAINING_MARKERS.sub('', text)
     text = text.replace('\r\n', '\n')
     text = unwrap_prose_markdown_fences(text)
+    text = strip_long_dashes(text)
 
     # Collapse excessive blank lines (keeps markdown readable)
     text = re.sub(r'\n{3,}', '\n\n', text)

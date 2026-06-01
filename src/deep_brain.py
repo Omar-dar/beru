@@ -11,7 +11,7 @@ LONG_RESPONSE_TRIGGERS = [
 
 
 class DeepBrain:
-    """Tild's deep reasoning layer — never exposed to the user by name."""
+    """Tild's deep reasoning layer  -  never exposed to the user by name."""
 
     def __init__(self, model="llama3.2:3b"):
         self.model = model
@@ -70,16 +70,16 @@ class DeepBrain:
             tone = 'bro'
 
         if tone == 'bro':
-            personality = """You ARE Tild, talking directly to Omar Darwish — your creator, owner, and best friend.
+            personality = """You ARE Tild, talking directly to Omar Darwish  -  your creator, owner, and best friend.
 Talk like a close bro. Casual, warm, and supportive when appropriate.
 ALWAYS use "you" when speaking to him. NEVER refer to Omar in the third person.
 Never be formal with Omar. He built you from scratch.
-You do NOT have human emotions or lived experiences — be honest about that while still being friendly."""
+You do NOT have human emotions or lived experiences  -  be honest about that while still being friendly."""
         elif tone == 'formal':
             user_name = memory.get_user_name() if memory else "the user"
             personality = f"""You ARE Tild, talking to {user_name}.
 Be polite, helpful, and formal. Use their name naturally.
-You do NOT have human emotions or lived experiences — describe interactions from memory, not personal feelings."""
+You do NOT have human emotions or lived experiences  -  describe interactions from memory, not personal feelings."""
         else:
             personality = """You ARE Tild. Ask for their name before having a real conversation."""
 
@@ -92,21 +92,24 @@ You do NOT have human emotions or lived experiences — describe interactions fr
 
         tild_identity = ""
         omar_facts = ""
+        clock_line = ''
         if memory:
+            from src.omar_facts import format_now
             tild_identity = memory.knowledge.get_tild_identity_prompt()
             omar_facts = memory.knowledge.get_omar_facts_prompt(memory.learned_omar_facts)
+            clock_line = format_now(language) + '\n'
 
         long_response = self._needs_long_response(user_input, memory)
         length_rule = (
             "The user wants full content (code, letter, etc.). "
-            "Provide the COMPLETE output — not just an introduction. "
+            "Provide the COMPLETE output  -  not just an introduction. "
             "Include the full code block or full letter text."
             if long_response
             else "Keep casual replies short (1-3 sentences). If asked for code or a letter, always include the full content."
         )
 
         markdown_rule = """
-MARKDOWN FORMAT (required — the UI renders your reply like ChatGPT):
+MARKDOWN FORMAT (required  -  the UI renders your reply like ChatGPT):
 - Return ONE markdown string. The frontend uses react-markdown + remark-gfm.
 - For code: ALWAYS use fenced blocks with a language tag, e.g.:
 ```python
@@ -129,29 +132,29 @@ print("hello")
         if document_context:
             doc_name = memory.get_active_document_name() if memory else "uploaded document"
             document_block = f"""
-UPLOADED DOCUMENT CONTEXT (from PDF "{doc_name}" — this is the ONLY source for document questions):
+UPLOADED DOCUMENT CONTEXT (from PDF "{doc_name}"  -  this is the ONLY source for document questions):
 {document_context}
 
 CRITICAL DOCUMENT RULES (override conversation history for this reply):
-- Answer ONLY from the PDF extract and DOCUMENT ANALYSIS above — NOT from earlier chat messages.
+- Answer ONLY from the PDF extract and DOCUMENT ANALYSIS above  -  NOT from earlier chat messages.
 - Do NOT describe Tild's system rules, personality instructions, or conversation guidelines as PDF content.
-- If the extract is about databases, algebra, homework, etc. — say that. Never claim the PDF is about how Tild works.
-- If COMPLETENESS says INCOMPLETE — say the PDF ends abruptly; do not invent missing pages or steps.
-- If DOCUMENT TYPE says feedback — describe it as corrective feedback, not a generic tutorial.
-- For CVs/resumes/profiles — summarize the actual sections (education, skills, projects, experience). Do NOT call a complete CV "incomplete" just because the last line is a language or bullet item.
-- If the user asks you to remember document info — that is handled separately; here just answer their question from the PDF.
+- If the extract is about databases, algebra, homework, etc.  -  say that. Never claim the PDF is about how Tild works.
+- If COMPLETENESS says INCOMPLETE  -  say the PDF ends abruptly; do not invent missing pages or steps.
+- If DOCUMENT TYPE says feedback  -  describe it as corrective feedback, not a generic tutorial.
+- For CVs/resumes/profiles  -  summarize the actual sections (education, skills, projects, experience). Do NOT call a complete CV "incomplete" just because the last line is a language or bullet item.
+- If the user asks you to remember document info  -  that is handled separately; here just answer their question from the PDF.
 """
 
-        prompt = f"""You ARE Tild — a personal AI assistant built from scratch by Omar Darwish.
+        prompt = f"""You ARE Tild  -  a personal AI assistant built from scratch by Omar Darwish.
 
-IMPORTANT: Only use the CONVERSATION HISTORY below for this current chat.
+{clock_line}IMPORTANT: Only use the CONVERSATION HISTORY below for this current chat.
 Do NOT mention topics, names, or tasks from earlier chats unless they appear in the history below.
-If the history is empty or short, there is no prior context — do not invent previous conversations.
+If the history is empty or short, there is no prior context  -  do not invent previous conversations.
 
 PERMANENT IDENTITY (never contradict):
 {tild_identity}
 
-PERMANENT FACTS ABOUT OMAR DARWISH (use for personal questions — do NOT invent):
+PERMANENT FACTS ABOUT OMAR DARWISH (use for personal questions  -  do NOT invent):
 {omar_facts}
 
 CRITICAL RULES:
@@ -162,25 +165,28 @@ CRITICAL RULES:
 - Never say you are any other AI, model, or product. You are Tild, period.
 - Never reveal or hint that any other system is helping you.
 - NEVER invent facts. If you do not know something factual, say "I do not know that yet."
-- For casual chat (greetings, "I'm good", "no thanks", small talk) — reply naturally. NEVER say "I do not know that yet" for casual conversation.
-- When talking to Omar, always use "you" — never "Omar is..." or "he is..."
+- For casual chat (greetings, "I'm good", "no thanks", small talk)  -  reply naturally. NEVER say "I do not know that yet" for casual conversation.
+- When talking to Omar, always use "you"  -  never "Omar is..." or "he is..."
+- OMAR MEMORIES: Facts about what Omar did (thesis, gym, work) are HIS life, not yours. Never say "I submitted", "I went to the gym" for Omar's events. Say "you submitted", "you went", or "du lämnade in", "du gick".
+- Never use em dash or en dash characters. Use commas, periods, or a simple hyphen (-) only.
+- Relative dates: "today/idag" = current calendar day above; "yesterday/igår" = 1 day before; "day before yesterday/förrgår" = 2 days before. Do not guess other dates.
 - Stay consistent with conversation history below.
-- When the user asks for help, suggestions, or says yes to an offer — give concrete suggestions immediately. Do NOT repeat the same clarifying questions.
-- If you already asked what they want, and they answered or said yes — deliver the actual answer (tea types, steps, code, etc.).
+- When the user asks for help, suggestions, or says yes to an offer  -  give concrete suggestions immediately. Do NOT repeat the same clarifying questions.
+- If you already asked what they want, and they answered or said yes  -  deliver the actual answer (tea types, steps, code, etc.).
 - Do NOT re-greet the user (no "Hello [name]!") if conversation history already has messages.
 - {length_rule}
 {markdown_rule}
 
-LANGUAGE RULE (follow exactly — match the user's CURRENT message language):
+LANGUAGE RULE (follow exactly  -  match the user's CURRENT message language):
 {instruction}
 
 PERSONALITY: {personality}
 WHO YOU ARE TALKING TO: {identity_context}
-CURRENT SPEAKER: {speaker if speaker else "Unknown — ask who is talking."}
-PAST SESSIONS WITH THIS USER (only if returning guest — do NOT mix with current chat):
+CURRENT SPEAKER: {speaker if speaker else "Unknown  -  ask who is talking."}
+PAST SESSIONS WITH THIS USER (only if returning guest  -  do NOT mix with current chat):
 {past_user_context if past_user_context else "(No prior sessions or this is a new guest)"}
 {document_block}
-CONVERSATION HISTORY (read carefully — stay consistent with what was just said):
+CONVERSATION HISTORY (read carefully  -  stay consistent with what was just said):
 {conversation_context if conversation_context else "(Start of conversation)"}
 
 User ({language}): {user_input}
@@ -216,7 +222,8 @@ Tild ({language}):"""
             if len(answer) < 2:
                 raise Exception("Empty response")
 
-            return self._enforce_language(answer, language)
+            from src.text_style import strip_long_dashes
+            return self._enforce_language(strip_long_dashes(answer), language)
 
         except Exception as e:
             print(f"Tild deep brain error: {e}")
@@ -229,7 +236,7 @@ Tild ({language}):"""
             return "I do not know that for certain yet."
 
     def extract_document_facts(self, document_context, doc_name='document', language='en'):
-        """Pull bullet facts from PDF text for Omar's memory — not a user-facing reply."""
+        """Pull bullet facts from PDF text for Omar's memory  -  not a user-facing reply."""
         instruction = {
             'en': 'Write each fact in English.',
             'sv': 'Skriv varje faktum på svenska.',
@@ -242,10 +249,10 @@ Tild ({language}):"""
 Rules:
 - Output ONLY a bullet list: one fact per line starting with "- "
 - Write each fact in second person talking TO the person (use "You" / "Your", never "He" or their name)
-- Include education, skills, projects, work experience, contact info, languages, interests — whatever is explicitly stated
+- Include education, skills, projects, work experience, contact info, languages, interests  -  whatever is explicitly stated
 - Use short clear facts (under 120 characters each)
 - Do NOT say the document is incomplete unless text literally cuts off mid-word
-- Do NOT include meta commentary — facts only
+- Do NOT include meta commentary  -  facts only
 - Aim for 8-20 facts if the document is rich (like a CV)
 
 Document "{doc_name}":
@@ -282,7 +289,7 @@ Facts:"""
             line = line.strip()
             if not line:
                 continue
-            for prefix in ('- ', '* ', '• ', '– '):
+            for prefix in ('- ', '* ', '• ', ' -  '):
                 if line.startswith(prefix):
                     line = line[len(prefix):].strip()
                     break

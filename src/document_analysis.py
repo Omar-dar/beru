@@ -62,7 +62,7 @@ def analyze_document_text(text):
     incomplete_reason = ''
 
     if text_stripped and text_stripped[-1] not in '.!?':
-        # CVs/resumes often end on a language line or bullet — not a cut-off PDF.
+        # CVs/resumes often end on a language line or bullet  -  not a cut-off PDF.
         if not _looks_like_structured_document(text_lower):
             appears_incomplete = True
             incomplete_reason = 'The extracted text does not end with a complete sentence.'
@@ -85,13 +85,13 @@ def analyze_document_text(text):
     if feedback_score >= 1 and re.search(r'\b(your|you\'ve|you have)\b', text_lower):
         style = 'feedback'
         style_detail = (
-            'Corrective feedback on a submitted expression or answer — '
+            'Corrective feedback on a submitted expression or answer  -  '
             'not a full standalone tutorial.'
         )
     elif feedback_score >= 2:
         style = 'feedback'
         style_detail = (
-            'Corrective feedback on a submitted expression or answer — '
+            'Corrective feedback on a submitted expression or answer  -  '
             'not a full standalone tutorial.'
         )
     elif tutorial_score >= 1:
@@ -116,12 +116,12 @@ def format_analysis_notes(analysis, language='en'):
     if analysis['style'] == 'feedback':
         if language == 'sv':
             lines.append(
-                'DOKUMENTTYP: Rättnings-/feedbacktext om ett inlämnat uttryck eller svar — '
+                'DOKUMENTTYP: Rättnings-/feedbacktext om ett inlämnat uttryck eller svar  -  '
                 'inte en fristående tutorial.'
             )
         else:
             lines.append(
-                'DOCUMENT TYPE: Corrective feedback on submitted work — NOT a full standalone tutorial.'
+                'DOCUMENT TYPE: Corrective feedback on submitted work  -  NOT a full standalone tutorial.'
             )
             if analysis['style_detail']:
                 lines.append(analysis['style_detail'])
@@ -138,12 +138,12 @@ def format_analysis_notes(analysis, language='en'):
         if language == 'sv':
             lines.append(f'FULLSTÄNDIGHET: Dokumentet verkar ofullständigt. {reason}')
             lines.append(
-                'Säg det tydligt i svaret — hitta inte på steg eller innehåll efter där texten slutar.'
+                'Säg det tydligt i svaret  -  hitta inte på steg eller innehåll efter där texten slutar.'
             )
         else:
             lines.append(f'COMPLETENESS: Document appears INCOMPLETE. {reason}')
             lines.append(
-                'State this clearly in your answer — do NOT invent steps or content after the text cuts off.'
+                'State this clearly in your answer  -  do NOT invent steps or content after the text cuts off.'
             )
 
     return '\n'.join(lines)

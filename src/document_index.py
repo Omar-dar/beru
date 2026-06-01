@@ -223,7 +223,7 @@ class TildDocumentIndex:
 
     @staticmethod
     def is_pre_upload_document_intent(text):
-        """User will upload later — do not read an old indexed PDF."""
+        """User will upload later  -  do not read an old indexed PDF."""
         import re
         text_lower = text.lower()
         return any(re.search(p, text_lower) for p in PRE_UPLOAD_DOCUMENT_TRIGGERS)
@@ -260,7 +260,7 @@ class TildDocumentIndex:
         return False
 
     def resolve_document_id(self, memory):
-        """Only the PDF attached in this session — never guess from old uploads."""
+        """Only the PDF attached in this session  -  never guess from old uploads."""
         if not memory:
             return None
         doc_id = memory.get_active_document_id()
@@ -281,13 +281,13 @@ class TildDocumentIndex:
         parts = []
         if notes:
             parts.append(
-                'DOCUMENT ANALYSIS (use this to shape your answer — do not paste as a rigid header):\n'
+                'DOCUMENT ANALYSIS (use this to shape your answer  -  do not paste as a rigid header):\n'
                 + notes
             )
 
         total = sum(len(p) for p in parts)
         for hit in hits:
-            header = f"[{hit['filename']} — page {hit['page']}]"
+            header = f"[{hit['filename']}  -  page {hit['page']}]"
             block = f"{header}\n{hit['text']}"
             if total + len(block) > max_chars:
                 remaining = max_chars - total
@@ -297,4 +297,5 @@ class TildDocumentIndex:
             parts.append(block)
             total += len(block)
 
-        return '\n\n---\n\n'.join(parts)
+        from src.text_style import strip_long_dashes
+        return strip_long_dashes('\n\n---\n\n'.join(parts))
