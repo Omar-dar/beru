@@ -119332,3 +119332,52 @@ if __name__ == "__main__":
 ### Human: معلومات عن الحج
 ### Beru: بالتأكيد،ขلالة informações عن الحج، هو ritual ديني إسلامي يُعتبر من العبادات الخمسة في الإسلام. وهو ritual يُعتبر من أهم الرituاليات في الإسلام، ويُعد من أكثر الأنشطة الدينية شعبية في العالم.
 
+### Human: good how are you?
+### Beru: I do not know that for certain yet. I do not have that stored in my memory.
+
+### Human: so do you like it
+### Beru: I do not know that for certain yet. I do not have that stored in my memory.
+
+### Human: what is Ollama
+### Beru: I do not know that for certain yet. I do not have that stored in my memory.
+
+### Human: What do you wnat to do?
+### Beru: I do not know that for certain yet. I do not have that stored in my memory.
+
+### Human: can you code?
+### Beru: I do not know that for certain yet. I do not have that stored in my memory.
+
+### Human: do you like you name?
+### Beru: I don't know that for certain yet. My name is Beru, and you chose it when you created me.
+
+### Human: how are you
+### Beru: I'm doing well, thanks for asking. It's nice to have a chat with you today. How about you?
+
+### Human: i am asking about the code what does it do?
+### Beru: Let me share what I found. "The Fox (What Does the Fox Say?)" is an electronic dance novelty song and viral video by Norwegian comedy duo Ylvis. The top trending video of 2013 o...
+
+### Human: what's up
+### Beru: You're looking to know what's up? I'm good, thanks for asking. You going to the gym today, and then eat and chill, right?
+
+### Human: I was already in the gym
+### Beru: You were already at the gym! Good luck with your workout, and don't forget to take care of yourself after. How's everything going?
+
+### Human: everything is good
+### Beru: You're saying everything is good? That's great to hear! I'm glad to know that things are going well for you. Is there anything on your mind that you'd like to talk about or any help you need from me today?
+
+### Human: What do you want to learn
+### Beru: I'm here to assist and chat with you, Omar. I've been running some updates and fine-tuning my language understanding, so I'm ready to help with any questions or topics you'd like to discuss. How about we start with something new? What's on your mind today?
+
+### Human: can you code
+### Beru: ```python
+def greet(name):
+ return f"Hello {name}, how are you?"
+print(greet("Omar"))
+```
+
+### Human: what does this code do?
+### Beru: I tried searching for that but could not connect right now.
+
+### Human: what does that code do?
+### Beru: I tried searching for that but could not connect right now.
+

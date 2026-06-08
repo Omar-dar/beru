@@ -2541,6 +2541,9 @@ class BeruMemory:
         return f'Yeah bro, you {summary} today. How did it feel?'
 
     def answer_from_knowledge(self, user_input, language='en'):
+        if self.knowledge.is_code_capability_question(user_input):
+            return self.knowledge.answer_code_capability_question(language, memory=self)
+
         if self.knowledge.is_beru_activity_question(user_input):
             return self.knowledge.answer_beru_activity_question(
                 user_input, language, memory=self
@@ -2551,13 +2554,20 @@ class BeruMemory:
                 user_input, language, memory=self
             )
 
+        if self.knowledge.is_beru_opinion_question(user_input, memory=self):
+            answer = self.knowledge.answer_beru_opinion_question(
+                user_input, language, memory=self
+            )
+            if answer:
+                return answer
+
         if self.knowledge.is_beru_self_question(user_input):
             answer = self.knowledge.answer_beru_self_question(
                 user_input, language, memory=self
             )
             if answer:
                 return answer
-            return self.knowledge.dont_know_response(language, 'that about myself')
+            return None
 
         if self.knowledge.is_omar_personal_question(user_input, self.is_owner()):
             if not self.is_owner():

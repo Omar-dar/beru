@@ -4,9 +4,9 @@ import os
 import ssl
 import re
 import wikipedia
-from dotenv import load_dotenv
+from src.project_env import load_project_dotenv
 
-load_dotenv()
+load_project_dotenv()
 
 OPENWEATHER_KEY = os.getenv('OPENWEATHER_KEY')
 
@@ -157,6 +157,22 @@ class BeruSearch:
         return f"{intro} {result}"
 
     def should_search(self, text, memory=None):
+        from src.router import is_conversation_context_question
+
+        from src.router import is_code_explanation_request
+
+        if is_code_explanation_request(text):
+            return False
+
+        if memory and is_conversation_context_question(text, memory):
+            return False
+
+        text_lower = text.lower()
+        if 'code' in text_lower and any(
+            w in text_lower for w in ('what does', 'what do', 'explain', 'mean', 'how does')
+        ):
+            return False
+
         if memory and memory.knowledge.should_block_search(text, memory.is_owner()):
             return False
 
@@ -187,7 +203,6 @@ class BeruSearch:
             'معلومات عن', 'اعرف', 'أعرف', 'اريد', 'أريد', 'اسباب', 'أسباب',
             'مجرة', 'كأس العالم', 'حرب', 'الحج', 'العمرة', 'مناسك',
         ]
-        text_lower = text.lower()
         if any(trigger in text for trigger in search_triggers):
             return True
         return any(trigger in text_lower for trigger in search_triggers)

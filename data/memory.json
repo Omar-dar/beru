@@ -32,10 +32,10 @@
       "language": "en",
       "is_owner": true,
       "permanently_verified": true,
-      "last_seen": "2026-06-01T16:29:49.082851",
+      "last_seen": "2026-06-08T21:01:28.704930",
       "topics": [],
       "sessions": [],
-      "visit_count": 40
+      "visit_count": 51
     },
     "usr_56684aa7": {
       "full_name": "Sara Andersson",
@@ -159,50 +159,85 @@
         }
       ],
       "visit_count": 1
+    },
+    "usr_551e5007": {
+      "full_name": "Yellow Omar",
+      "first_name": "Yellow",
+      "language": "en",
+      "is_owner": false,
+      "permanently_verified": false,
+      "last_seen": "2026-06-08T17:03:09.986739",
+      "topics": [],
+      "sessions": [
+        {
+          "date": "2026-06-08T17:03:26.712084",
+          "messages": [
+            {
+              "role": "human",
+              "text": "Yes",
+              "time": "2026-06-08T17:02:40.202650"
+            },
+            {
+              "role": "beru",
+              "text": "Okay! What is the password?",
+              "time": "2026-06-08T17:02:40.206035"
+            },
+            {
+              "role": "human",
+              "text": "Yellow",
+              "time": "2026-06-08T17:02:46.196500"
+            },
+            {
+              "role": "beru",
+              "text": "Wrong password! I cannot verify your identity. Who are you?",
+              "time": "2026-06-08T17:02:46.202411"
+            },
+            {
+              "role": "human",
+              "text": "yellow",
+              "time": "2026-06-08T17:02:55.715018"
+            },
+            {
+              "role": "beru",
+              "text": "Thanks Yellow! What is your full name?",
+              "time": "2026-06-08T17:02:55.718409"
+            },
+            {
+              "role": "human",
+              "text": "No i'm omar",
+              "time": "2026-06-08T17:03:05.018753"
+            },
+            {
+              "role": "beru",
+              "text": "Thanks Yellow! What is your full name?",
+              "time": "2026-06-08T17:03:05.021339"
+            },
+            {
+              "role": "human",
+              "text": "Omar",
+              "time": "2026-06-08T17:03:09.983733"
+            },
+            {
+              "role": "beru",
+              "text": "Hello Yellow Omar! Nice to meet you. I will remember you and what we talk about. How may I help you?",
+              "time": "2026-06-08T17:03:09.988117"
+            },
+            {
+              "role": "human",
+              "text": "who are you",
+              "time": "2026-06-08T17:03:16.524992"
+            },
+            {
+              "role": "beru",
+              "text": "I am Beru, a personal AI assistant built from scratch by Omar Darwish. I speak English, Swedish, and Arabic.",
+              "time": "2026-06-08T17:03:16.528765"
+            }
+          ]
+        }
+      ],
+      "visit_count": 1
     }
   },
-  "conversation_history": [
-    {
-      "role": "human",
-      "text": "Yes",
-      "time": "2026-06-01T16:29:44.654486"
-    },
-    {
-      "role": "beru",
-      "text": "Okay! What is the password?",
-      "time": "2026-06-01T16:29:44.660791"
-    },
-    {
-      "role": "human",
-      "text": "Yellow",
-      "time": "2026-06-01T16:29:49.081889"
-    },
-    {
-      "role": "beru",
-      "text": "Correct password! Hey Omar! What is up bro?",
-      "time": "2026-06-01T16:29:49.084217"
-    },
-    {
-      "role": "human",
-      "text": "what do you want to do today",
-      "time": "2026-06-01T16:29:52.444570"
-    },
-    {
-      "role": "beru",
-      "text": "I am an AI bro, I do not have a human day off or hobbies like chilling on projects. What I want is to talk with you and help with whatever you need. What are your plans for today?",
-      "time": "2026-06-01T16:29:52.445630"
-    },
-    {
-      "role": "human",
-      "text": "I will go to the gym today",
-      "time": "2026-06-01T16:30:17.809553"
-    },
-    {
-      "role": "beru",
-      "text": "Nice bro, sounds like a solid plan! The gym. Have a great workout when you go!",
-      "time": "2026-06-01T16:30:17.814296"
-    }
-  ],
   "learned_omar_facts": [
     {
       "text": "Don't give me suggestions when I ask for code, only give me when i ask",
@@ -389,6 +424,24 @@
       "saved_at": "2026-06-01T16:30",
       "date": "2026-06-01",
       "event_date": "2026-06-01"
+    },
+    {
+      "text": "Good i will go to the gym today",
+      "saved_at": "2026-06-08T17:35",
+      "date": "2026-06-08",
+      "event_date": "2026-06-08"
+    }
+  ],
+  "conversation_history": [
+    {
+      "role": "human",
+      "text": "can you code?",
+      "time": "2026-06-08T21:01:28.705688"
+    },
+    {
+      "role": "beru",
+      "text": "```python\ndef greet(language):\n    return \"Hello!\"\n```",
+      "time": "2026-06-08T21:01:28.706619"
     }
   ]
 }

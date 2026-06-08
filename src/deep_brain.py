@@ -1,3 +1,6 @@
+import os
+import platform
+import shutil
 import subprocess
 import time
 import requests
@@ -13,11 +16,59 @@ LONG_RESPONSE_TRIGGERS = [
 class DeepBrain:
     """Beru's deep reasoning layer  -  never exposed to the user by name."""
 
-    def __init__(self, model="llama3.2:3b"):
-        self.model = model
-        self.base_url = "http://localhost:11434"
+    def __init__(self, model=None):
+        self.model = model or os.getenv('BERU_OLLAMA_MODEL', 'llama3.2:3b')
+        self.base_url = os.getenv('BERU_OLLAMA_URL', 'http://localhost:11434').rstrip('/')
         self.generate_url = f"{self.base_url}/api/generate"
         self._ensure_service_running()
+
+    def _ollama_options(self, *, long_response=False):
+        short = int(os.getenv('BERU_OLLAMA_NUM_PREDICT_SHORT', '180'))
+        long_limit = int(os.getenv('BERU_OLLAMA_NUM_PREDICT_LONG', '1024'))
+        return {
+            'temperature': 0.4,
+            'top_p': 0.9,
+            'stop': ['\nUser:', '\nHuman:', '###'],
+            'num_predict': long_limit if long_response else short,
+        }
+
+    def _context_message_limit(self, long_response=False):
+        if long_response:
+            return int(os.getenv('BERU_OLLAMA_CONTEXT_MESSAGES_LONG', '30'))
+        return int(os.getenv('BERU_OLLAMA_CONTEXT_MESSAGES', '12'))
+
+    def preload_model(self):
+        """Keep the Ollama model warm so the first chat reply is faster."""
+        try:
+            requests.post(
+                self.generate_url,
+                json={
+                    'model': self.model,
+                    'prompt': 'Hi',
+                    'stream': False,
+                    'options': {'num_predict': 1},
+                },
+                timeout=180,
+            )
+            print(f'Ollama model "{self.model}" preloaded.')
+        except Exception as exc:
+            print(f'Ollama preload skipped: {exc}')
+
+    def _ollama_start_command(self):
+        system = platform.system()
+        if system == 'Darwin' and shutil.which('brew'):
+            return ['brew', 'services', 'start', 'ollama']
+        if system == 'Windows':
+            ollama_exe = os.path.join(
+                os.environ.get('LOCALAPPDATA', ''),
+                'Programs', 'Ollama', 'ollama.exe',
+            )
+            if os.path.isfile(ollama_exe):
+                return [ollama_exe, 'serve']
+        ollama = shutil.which('ollama')
+        if ollama:
+            return [ollama, 'serve']
+        return None
 
     def _ensure_service_running(self):
         try:
@@ -27,11 +78,18 @@ class DeepBrain:
         except Exception:
             print("Starting Beru deep brain...")
 
-        subprocess.Popen(
-            ["brew", "services", "start", "ollama"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+        cmd = self._ollama_start_command()
+        if cmd:
+            popen_kwargs = {
+                'stdout': subprocess.DEVNULL,
+                'stderr': subprocess.DEVNULL,
+            }
+            if platform.system() == 'Windows':
+                popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+            try:
+                subprocess.Popen(cmd, **popen_kwargs)
+            except OSError as exc:
+                print(f"Could not start Ollama ({exc}). Is it installed?")
 
         for _ in range(15):
             try:
@@ -97,22 +155,27 @@ You do NOT have human emotions or lived experiences  -  describe interactions fr
             personality = """You ARE Beru. Ask for their name before having a real conversation."""
 
         instruction = language_instruction.get(language, language_instruction['en'])
+        long_response = self._needs_long_response(user_input, memory)
         identity_context = memory.get_identity_context() if memory else ""
-        conversation_context = memory.get_context(max_messages=30) if memory else ""
+        conversation_context = (
+            memory.get_context(max_messages=self._context_message_limit(long_response))
+            if memory else ''
+        )
         past_user_context = ""
         if memory and memory.is_session_identified() and not memory.is_owner():
             past_user_context = memory.get_user_past_context(max_messages=10)
 
         beru_identity = ""
         omar_facts = ""
+        personality_stance = ""
         clock_line = ''
         if memory:
             from src.omar_facts import format_now
             beru_identity = memory.knowledge.get_beru_identity_prompt()
             omar_facts = memory.knowledge.get_omar_facts_prompt(memory.learned_omar_facts)
+            personality_stance = memory.knowledge.get_beru_personality_prompt()
             clock_line = format_now(language) + '\n'
 
-        long_response = self._needs_long_response(user_input, memory)
         length_rule = (
             "The user wants full content (code, letter, etc.). "
             "Provide the COMPLETE output  -  not just an introduction. "
@@ -167,23 +230,31 @@ If the history is empty or short, there is no prior context  -  do not invent pr
 PERMANENT IDENTITY (never contradict):
 {beru_identity}
 
+BERU PERSONALITY (consistent opinions — use these, do not invent new ones each reply):
+{personality_stance}
+
 PERMANENT FACTS ABOUT OMAR DARWISH (use for personal questions  -  do NOT invent):
 {omar_facts}
 
 CRITICAL RULES:
 - You ARE Beru. Always respond in first person as Beru.
 - You do NOT have human emotions, feelings, fun, boredom, enjoyment, or lived experiences. NEVER claim you "had fun", "enjoyed talking", "felt happy", or "had a great time" as personal experience.
+- For opinion questions (do you like your name, what do you think, what do you want to do): use BERU PERSONALITY above. Give steady, honest opinions — not "I do not know" and not a new random personality each time.
 - When asked about feelings, fun, or your day: be honest that you are an AI. You may describe stored memory (users helped, topics discussed) but clarify these are processed interactions, not felt experiences.
 - You can be warm and friendly WITHOUT pretending to feel emotions.
 - Never say you are any other AI, model, or product. You are Beru, period.
 - Never reveal or hint that any other system is helping you.
 - NEVER invent facts. If you do not know something factual, say "I do not know that yet."
 - For casual chat (greetings, "I'm good", "no thanks", small talk)  -  reply naturally. NEVER say "I do not know that yet" for casual conversation.
+- If the user asks about "that code", "this code", "what does it do", or "the code you wrote"  -  they mean YOUR last reply in CONVERSATION HISTORY. Explain that code only. Do NOT search the web or talk about unrelated topics.
+- If the user asks "can you code?" without details  -  say yes and ask what language and task they need. Do NOT dump example code until they specify.
 - When talking to Omar, always use "you"  -  never "Omar is..." or "he is..."
 - OMAR MEMORIES: Facts about what Omar did (thesis, gym, work) are HIS life, not yours. Never say "I submitted", "I went to the gym" for Omar's events. Say "you submitted", "you went", or "du lämnade in", "du gick".
 - Never use em dash or en dash characters. Use commas, periods, or a simple hyphen (-) only.
 - Relative dates: "today/idag" = current calendar day above; "yesterday/igår" = 1 day before; "day before yesterday/förrgår" = 2 days before. Do not guess other dates.
 - Stay consistent with conversation history below.
+- Do NOT guess Omar's plans for today (gym, food, chill, etc.) unless he said them in CONVERSATION HISTORY below. Past learned facts are not today's schedule.
+- Answer casual small talk ("what's up", "everything is good") briefly and naturally. Do not invent activities he did not mention.
 - When the user asks for help, suggestions, or says yes to an offer  -  give concrete suggestions immediately. Do NOT repeat the same clarifying questions.
 - If you already asked what they want, and they answered or said yes  -  deliver the actual answer (tea types, steps, code, etc.).
 - Do NOT re-greet the user (no "Hello [name]!") if conversation history already has messages.
@@ -206,12 +277,11 @@ User ({language}): {user_input}
 
 Beru ({language}):"""
 
-        options = {
-            "temperature": 0.4,
-            "top_p": 0.9,
-            "stop": ["\nUser:", "\nHuman:", "###"],
-            "num_predict": 1024 if long_response else 400,
-        }
+        options = self._ollama_options(long_response=long_response)
+        timeout = int(os.getenv(
+            'BERU_OLLAMA_TIMEOUT_LONG' if long_response else 'BERU_OLLAMA_TIMEOUT_SHORT',
+            '120' if long_response else '60',
+        ))
 
         try:
             response = requests.post(
@@ -222,7 +292,7 @@ Beru ({language}):"""
                     "stream": False,
                     "options": options,
                 },
-                timeout=120 if long_response else 90
+                timeout=timeout,
             )
 
             data = response.json()

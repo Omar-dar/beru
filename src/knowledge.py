@@ -193,6 +193,109 @@ class BeruKnowledge:
             return True
         return any(trigger in text_lower for trigger in OMAR_ONLY_TRIGGERS)
 
+    def get_beru_personality_prompt(self):
+        personality = self.beru_identity.get('personality', {})
+        lines = [
+            'Beru has a consistent personality — use these stances every time. '
+            'Do not invent new preferences each reply.',
+        ]
+        for trait in personality.get('traits', []):
+            lines.append(f'- {trait}')
+        lines.append('Core opinions (stay consistent):')
+        for topic, replies in personality.get('opinions', {}).items():
+            text = replies.get('en') or next(iter(replies.values()), '')
+            if text:
+                lines.append(f'- {topic}: {text}')
+        return '\n'.join(lines)
+
+    def is_code_capability_question(self, text):
+        """Can you code? — ability check, not a request to generate code yet."""
+        tl = text.lower().strip()
+        if any(
+            p in tl
+            for p in (
+                'write code', 'give me code', 'show me code', 'generate code',
+                'code for', 'need code', 'want code', 'create code', 'make code',
+                'skriv kod', 'ge mig kod',
+            )
+        ):
+            return False
+        return any(
+            p in tl
+            for p in (
+                'can you code', 'can u code', 'do you code', 'able to code',
+                'know how to code', 'can you program', 'can you help with code',
+                'kan du koda', 'kan du programmera',
+            )
+        )
+
+    def answer_code_capability_question(self, language='en', memory=None):
+        opinions = self.beru_identity.get('personality', {}).get('opinions', {})
+        base = (opinions.get('coding') or {}).get(language) or (opinions.get('coding') or {}).get('en', '')
+        if memory and memory.is_owner():
+            if language == 'sv':
+                return f'{base} Vad behöver du hjälp med — språk och vad koden ska göra?'
+            if language == 'ar':
+                return f'{base} ماذا تحتاج بالضبط — أي لغة وماذا يجب أن يفعل الكود؟'
+            return f'{base} What do you need bro — which language and what should the code do?'
+        if language == 'sv':
+            return f'{base} Berätta vilket språk och vad koden ska göra.'
+        if language == 'ar':
+            return f'{base} قل لي أي لغة وماذا يجب أن يفعل الكود.'
+        return f'{base} Tell me which language and what the code should do.'
+
+    def is_beru_opinion_question(self, text, memory=None):
+        """Asking what Beru likes, thinks, or prefers about itself."""
+        tl = text.lower().strip()
+        opinion_markers = (
+            'like', 'love', 'prefer', 'enjoy', 'think about', 'feel about',
+            'what do you think', 'your opinion', 'do you want',
+        )
+        if not any(m in tl for m in opinion_markers):
+            return False
+        self_refs = (
+            'your name', 'you name', 'ur name', 'name beru', 'called beru', 'being beru',
+            'about you', 'about yourself', 'being an ai', 'as an ai',
+            'coding', 'code', 'program', 'helping', 'your purpose',
+        )
+        if any(r in tl for r in self_refs):
+            return True
+        if re.search(r'\b(it|that|them)\b', tl) and memory:
+            recent = ' '.join(
+                m['text'].lower() for m in memory.conversation_history[-6:]
+            )
+            if any(w in recent for w in ('name', 'beru', 'coding', 'code')):
+                return True
+        return False
+
+    def _beru_opinion_topic(self, text, memory=None):
+        tl = text.lower()
+        if any(x in tl for x in ('code', 'coding', 'program')):
+            return 'coding'
+        if any(x in tl for x in ('name', 'beru', 'called')):
+            return 'name'
+        if any(x in tl for x in ('purpose', 'want to do', 'want to be', 'why do you exist')):
+            return 'purpose'
+        if memory and re.search(r'\b(it|that)\b', tl):
+            recent = ' '.join(
+                m['text'].lower() for m in memory.conversation_history[-6:]
+            )
+            if 'name' in recent or 'beru' in recent:
+                return 'name'
+            if 'code' in recent or 'coding' in recent:
+                return 'coding'
+        return 'general'
+
+    def answer_beru_opinion_question(self, text, language='en', memory=None):
+        topic = self._beru_opinion_topic(text, memory)
+        opinions = self.beru_identity.get('personality', {}).get('opinions', {})
+        reply = (opinions.get(topic) or opinions.get('general') or {}).get(language)
+        if not reply and opinions.get(topic):
+            reply = opinions[topic].get('en')
+        if not reply and opinions.get('general'):
+            reply = opinions['general'].get('en')
+        return reply
+
     def is_beru_self_question(self, text):
         text_lower = text.lower()
         if self.is_beru_activity_question(text):
@@ -641,12 +744,21 @@ class BeruKnowledge:
         )
 
     def answer_beru_self_question(self, text, language='en', memory=None):
+        if self.is_beru_opinion_question(text, memory):
+            opinion = self.answer_beru_opinion_question(text, language, memory)
+            if opinion:
+                return opinion
+
         text_lower = text.lower()
         identity = self.beru_identity
         creator = identity.get('creator', OWNER_FULL_NAME)
         is_owner = memory is not None and memory.is_owner()
 
         if any(k in text_lower for k in ['name', 'heter', 'called']):
+            if self.is_beru_opinion_question(text, memory):
+                opinion = self.answer_beru_opinion_question(text, language, memory)
+                if opinion:
+                    return opinion
             if is_owner:
                 if language == 'sv':
                     return 'Jag heter Beru. Du gav mig namnet när du skapade mig.'

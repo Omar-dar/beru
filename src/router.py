@@ -36,12 +36,103 @@ FOLLOW_UP_WORDS = {
     'more text', 'add more', 'continue', 'brev', 'kod',
 }
 
+CODE_GENERATION_TRIGGERS = [
+    'write code', 'write me code', 'give me code', 'show me code', 'generate code',
+    'code for', 'code to', 'need code', 'want code', 'create code', 'make code',
+    'python script', 'javascript for', 'skriv kod', 'ge mig kod', 'generera kod',
+]
+
+CONVERSATION_REFERENCE_PHRASES = (
+    'that code', 'this code', 'the code', 'your code', 'that script', 'this script',
+    'what does it do', 'what does that do', 'what does this code', 'what does that code',
+    'what do this code', 'what do that code', 'what is that code', 'what is this code',
+    'explain that code', 'explain the code', 'explain this code', 'about the code',
+    'about that code', 'the code you', 'code you wrote', 'code you just',
+    'asking about the code', 'no the code', 'the code you wrote',
+    'that letter', 'this letter', 'the letter you', 'what you wrote', 'what you just',
+    'you wrote', 'you said', 'in that message', 'your last message', 'your reply',
+    'den koden', 'vad gör den', 'vad gör koden', 'den koden du', 'förklara koden',
+)
+
+CODE_IN_REPLY_MARKERS = (
+    '```', 'def ', 'import ', 'function ', 'class ', 'print(', 'return ',
+)
+
+
+def _recent_conversation_text(memory, max_messages=6):
+    if not memory:
+        return ''
+    return ' '.join(m['text'] for m in memory.conversation_history[-max_messages:])
+
+
+def _recent_beru_reply(memory):
+    if not memory:
+        return ''
+    beru_msgs = [m['text'] for m in memory.conversation_history if m.get('role') == 'beru']
+    return beru_msgs[-1] if beru_msgs else ''
+
+
+def is_conversation_context_question(text, memory=None):
+    """User is asking about something Beru just said or wrote — not the open web."""
+    if is_code_explanation_request(text):
+        return True
+    if not memory or not memory.conversation_history:
+        return False
+    tl = text.lower().strip()
+    if any(p in tl for p in CONVERSATION_REFERENCE_PHRASES):
+        return True
+    recent_beru = _recent_beru_reply(memory).lower()
+    recent_all = _recent_conversation_text(memory).lower()
+    has_code = any(m in recent_beru for m in CODE_IN_REPLY_MARKERS)
+    has_letter = any(w in recent_all for w in ('dear ', 'letter', 'draft', 'brev'))
+    if re.search(r'\b(it|that|this)\b', tl) and any(
+        w in tl for w in ('do', 'does', 'mean', 'for', 'about', 'explain', 'what is', 'what does')
+    ):
+        if has_code or has_letter:
+            return True
+    if 'code' in tl and any(w in tl for w in ('that', 'this', 'your', 'explain', 'about', 'does', 'do')):
+        if has_code:
+            return True
+    return False
+
+
+def is_code_explanation_request(text):
+    """User wants an explanation of code from chat (often pasted in the message)."""
+    tl = text.lower().strip()
+    if 'code' not in tl and not any(m in text for m in CODE_IN_REPLY_MARKERS):
+        return False
+    explain_markers = (
+        'what does', 'what do', 'how does', 'how do', 'explain', 'mean', 'what is this',
+        'what is that', 'tell me what', 'what?s this', "what's this",
+    )
+    if not any(m in tl for m in explain_markers):
+        return False
+    if any(m in text for m in CODE_IN_REPLY_MARKERS) or 'def ' in text or 'import ' in tl:
+        return True
+    if 'code' in tl:
+        return True
+    return False
+
+
+def is_code_generation_request(text):
+    text_lower = text.lower()
+    if any(t in text_lower for t in CODE_GENERATION_TRIGGERS):
+        return True
+    if re.search(r'\b(code|kod)\b', text_lower):
+        return any(
+            v in text_lower
+            for v in ('write', 'give', 'show', 'generate', 'create', 'make', 'need', 'want', 'skriv', 'ge mig')
+        )
+    return False
+
 
 def is_creative_task(text, memory=None):
     text_lower = text.lower()
+    if is_code_generation_request(text):
+        return True
     if any(t in text_lower for t in CREATIVE_TRIGGERS):
         return True
-    if any(w in text_lower for w in ('letter', 'draft', 'poem', 'story', 'essay', 'brev', 'kod')):
+    if any(w in text_lower for w in ('letter', 'draft', 'poem', 'story', 'essay', 'brev')):
         return True
     if memory and _is_conversation_follow_up(text_lower, memory):
         return True
@@ -66,23 +157,27 @@ def is_conversational(text, memory=None):
 
 
 def _is_conversation_follow_up(text_lower, memory):
-    if any(text_lower.startswith(s) for s in (
-        'what is ', 'what are ', 'who is ', 'how does ', 'how do ',
-        'vad är ', 'vem är ', 'hur fungerar ', 'tell me about ',
-    )):
-        return False
-
     history = memory.conversation_history[-4:]
     if not history:
         return False
 
     recent = ' '.join(m['text'] for m in history).lower()
+    has_code = any(m in recent for m in CODE_IN_REPLY_MARKERS) or '```' in recent
+    has_letter = any(w in recent for w in ('letter', 'draft', 'write a letter', 'help you with writing'))
 
-    if any(w in recent for w in ('letter', 'draft', 'write a letter', 'help you with writing', 'code snippet')):
+    if has_code or has_letter:
         if any(w in text_lower for w in FOLLOW_UP_WORDS):
+            return True
+        if is_conversation_context_question(text_lower, memory):
             return True
         if len(text_lower.split()) > 8:
             return True
+
+    if any(text_lower.startswith(s) for s in (
+        'what is ', 'what are ', 'who is ', 'how does ', 'how do ',
+        'vad är ', 'vem är ', 'hur fungerar ', 'tell me about ',
+    )):
+        return False
     return False
 
 
@@ -99,6 +194,8 @@ def is_factual_rag_candidate(text, memory):
     from src.language import is_arabic_text
 
     text_lower = text.lower()
+    if is_conversation_context_question(text, memory):
+        return False
     if is_creative_task(text, memory) or is_conversational(text, memory):
         return False
     if memory and memory.knowledge.should_block_search(text, memory.is_owner()):
@@ -117,6 +214,8 @@ def is_factual_rag_candidate(text, memory):
 
 
 def should_use_search(text, memory):
+    if is_conversation_context_question(text, memory):
+        return False
     if is_creative_task(text, memory) or is_conversational(text, memory):
         return False
     if memory and memory.knowledge.should_block_search(text, memory.is_owner()):
@@ -133,6 +232,9 @@ def route_request(user_input, memory, is_analysis_fn=None, search=None):
     - search: weather / general web facts
     - analysis: NER on long text
     """
+    if is_conversation_context_question(user_input, memory):
+        return ROUTE_BRAIN
+
     if is_creative_task(user_input, memory):
         return ROUTE_BRAIN
 

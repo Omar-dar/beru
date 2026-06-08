@@ -5,6 +5,10 @@ from src.venv_bootstrap import ensure_project_venv
 
 ensure_project_venv()
 
+from src.project_env import load_project_dotenv
+
+load_project_dotenv()
+
 import base64
 import tempfile
 from contextlib import contextmanager
@@ -37,9 +41,13 @@ ALLOWED_EXTENSIONS = {'.pdf'}
 
 print("Beru API ready!")
 
+import threading
+
 if os.getenv('BERU_PRELOAD_VOICE', '1').strip().lower() in ('1', 'true', 'yes'):
-    import threading
     threading.Thread(target=preload_stt_model, daemon=True).start()
+
+if os.getenv('BERU_OLLAMA_PRELOAD', '1').strip().lower() in ('1', 'true', 'yes'):
+    threading.Thread(target=pipeline.brain.preload_model, daemon=True).start()
 
 
 def _allowed_file(filename):

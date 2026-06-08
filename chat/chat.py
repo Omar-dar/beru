@@ -2,9 +2,9 @@ import torch
 import random
 import re
 import os
-from dotenv import load_dotenv
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
+from src.project_env import load_project_dotenv
 from src.rag import BeruRAG
 from src.memory import BeruMemory, GREETING_WORDS
 from src.search import BeruSearch
@@ -21,10 +21,16 @@ from src.language import (
     resolve_turn_language,
 )
 from src.router import (
-    route_request, ROUTE_BRAIN, ROUTE_RAG, ROUTE_SEARCH, ROUTE_ANALYSIS,
+    route_request,
+    ROUTE_BRAIN,
+    ROUTE_RAG,
+    ROUTE_SEARCH,
+    ROUTE_ANALYSIS,
+    is_conversation_context_question,
+    is_code_explanation_request,
 )
 
-load_dotenv()
+load_project_dotenv()
 
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
@@ -45,9 +51,8 @@ FALLBACKS_SV = [
     "Jag vet inte tillräckligt om det ännu men jag lär mig hela tiden!",
 ]
 
-PROTECTED_USERS = {
-    "Omar": os.getenv("BERU_OMAR_PASSWORD", "beru123")
-}
+def protected_users():
+    return {"Omar": os.getenv("BERU_OMAR_PASSWORD", "beru123")}
 
 
 def load_beru():
@@ -418,7 +423,7 @@ def get_response(
     if pending_name:
         pending_language = memory.session.get("pending_language", "en")
 
-        stored = PROTECTED_USERS.get(pending_name)
+        stored = protected_users().get(pending_name)
         if stored and BeruMemory.passwords_match(user_input, stored):
             memory.clear_pending_name()
             if pending_name == "Omar":
@@ -514,7 +519,7 @@ def get_response(
         full_name = detect_full_name(user_input_lower, original_text=user_input)
         detected_name = detect_name(user_input_lower) or detect_arabic_name(user_input)
 
-        if detected_name in PROTECTED_USERS:
+        if detected_name in protected_users():
             memory.set_pending_name(detected_name, language)
             if language == "sv":
                 return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?", 'gate'
@@ -533,6 +538,17 @@ def get_response(
             return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
 
         return memory.ask_to_identify(language), 'gate'
+
+    # Code capability + explain-code-from-chat (before search/router can misroute)
+    if memory.knowledge.is_code_capability_question(user_input):
+        return memory.knowledge.answer_code_capability_question(language, memory), 'knowledge'
+
+    if brain and (
+        is_conversation_context_question(user_input, memory)
+        or is_code_explanation_request(user_input)
+    ):
+        print("[Beru explaining from chat context...]")
+        return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
 
     # PDF document questions — before generic handlers (avoid brain hallucinating Beru rules)
     index = getattr(rag, 'document_index', None)
@@ -713,6 +729,12 @@ def get_response(
                 result = result[:150] + "..."
             print(f"[Found: {result[:50]}...]")
             return search.format_response(result, user_input), 'search'
+        if brain and (
+            is_conversation_context_question(user_input, memory)
+            or is_code_explanation_request(user_input)
+        ):
+            print("[Search failed — explaining from chat context...]")
+            return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
         if language == "sv":
             return "Jag försökte söka efter det men kunde inte ansluta just nu.", 'search'
         if language == "ar":
