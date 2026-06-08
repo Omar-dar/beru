@@ -1,6 +1,6 @@
 import torch
 
-class TildConfig:
+class BeruConfig:
 
     block_size = 128
     n_embd     = 384
@@ -17,5 +17,5 @@ class TildConfig:
         'data/personality_data.txt'
     ]
 
-    model_path = 'models/tild_brain.pt'
+    model_path = 'models/beru_brain.pt'
     encoding   = 'gpt2'

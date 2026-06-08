@@ -1,16 +1,16 @@
-# Tild UI ↔ Backend handoff
+# Beru UI ↔ Backend handoff
 
-What we built in **tild-ui** (frontend) and what **tild** (backend) must provide or verify.  
-Phone UI: [https://tildui.netlify.app](https://tildui.netlify.app)
+What we built in **beru-ui** (frontend) and what **beru** (backend) must provide or verify.  
+Phone UI: [https://beruui.netlify.app](https://beruui.netlify.app)
 
 ---
 
-## What we built in tild-ui (frontend)
+## What we built in beru-ui (frontend)
 
 ### Chat UI
 
-- ChatGPT-style layout (Tild theme `#0c0c12`), markdown (`react-markdown` + GFM), code blocks, user/assistant bubbles.
-- Typewriter animation for new Tild replies; RTL replies skip typewriter when `text_direction: "rtl"`.
+- ChatGPT-style layout (Beru theme `#0c0c12`), markdown (`react-markdown` + GFM), code blocks, user/assistant bubbles.
+- Typewriter animation for new Beru replies; RTL replies skip typewriter when `text_direction: "rtl"`.
 - PDF upload: `POST /upload`, drag-drop, PDF shown as a user message card in chat.
 - Suggested prompts after upload.
 
@@ -31,9 +31,9 @@ Phone UI: [https://tildui.netlify.app](https://tildui.netlify.app)
 
 - `REACT_APP_API_URL` baked at build time (`src/services/api.ts`).
 - Local dev: `.env.development` → `http://localhost:8000` for `npm start`.
-- **Netlify production:** must be **HTTPS** (e.g. ngrok), **not** `http://192.168.x.x:8000` (Safari blocks mixed content on `https://tildui.netlify.app`).
+- **Netlify production:** must be **HTTPS** (e.g. ngrok), **not** `http://192.168.x.x:8000` (Safari blocks mixed content on `https://beruui.netlify.app`).
 - Deploy helpers: `netlify.toml`, `scripts/check-netlify-env.js` (fails build if URL missing, localhost, HTTP-on-HTTPS site, or placeholder like `abc123.ngrok-free.app`).
-- Docs: `tild-ui/docs/DEPLOY.md`.
+- Docs: `beru-ui/docs/DEPLOY.md`.
 
 ### Guest conversation collection (UI side — done)
 
@@ -41,56 +41,56 @@ Backend already logs turns; UI sends a stable per-browser session id:
 
 | Mechanism | Where |
 |-----------|--------|
-| `X-Tild-Session-Id: <uuid>` | Axios default header on all requests |
+| `X-Beru-Session-Id: <uuid>` | Axios default header on all requests |
 | `session_id` in JSON body | `POST /chat` |
 | `session_id` form field | `POST /voice/chat` |
-| Storage | `localStorage` key `tild_session_id` via `src/utils/tildSession.ts` |
+| Storage | `localStorage` key `beru_session_id` via `src/utils/beruSession.ts` |
 
 **Important:** Without this UUID, backend falls back to client IP (bad behind Netlify). UI always sends UUID.
 
 ### Responsive / mobile
 
 - `src/styles/responsive.css`, safe areas, 44px touch targets, `viewport-fit=cover`.
-- Phone UI URL: **https://tildui.netlify.app** (not the ngrok URL for normal use).
+- Phone UI URL: **https://beruui.netlify.app** (not the ngrok URL for normal use).
 
-### Git (tild-ui, on `main`)
+### Git (beru-ui, on `main`)
 
 Separate commits for: responsive, mobile voice, session id, Netlify env verification.
 
 ---
 
-## What the backend (tild) must provide / verify
+## What the backend (beru) must provide / verify
 
 ### 1. Network access (Mac + phone + Netlify)
 
-- API listens on `0.0.0.0:8000`, e.g. `app.run(host='0.0.0.0', port=8000, debug=False)` in `tild_api.py`.
+- API listens on `0.0.0.0:8000`, e.g. `app.run(host='0.0.0.0', port=8000, debug=False)` in `beru_api.py`.
 - macOS firewall allows port **8000**.
-- For `https://tildui.netlify.app` on phone: run `ngrok http 8000`, put the real `https://….ngrok-free.app` in Netlify `REACT_APP_API_URL` (not the doc example `abc123`).
-- Keep `python3 tild_api.py` and ngrok running while testing; ngrok URL changes when restarted → update Netlify + redeploy.
+- For `https://beruui.netlify.app` on phone: run `ngrok http 8000`, put the real `https://….ngrok-free.app` in Netlify `REACT_APP_API_URL` (not the doc example `abc123`).
+- Keep `python3 beru_api.py` and ngrok running while testing; ngrok URL changes when restarted → update Netlify + redeploy.
 
 ### 2. CORS (if not already)
 
-Browser on `https://tildui.netlify.app` calls API on ngrok origin. Backend must allow:
+Browser on `https://beruui.netlify.app` calls API on ngrok origin. Backend must allow:
 
-- **Origin:** `https://tildui.netlify.app` (and optionally `http://localhost:3000` for dev).
-- **Methods/headers:** `POST`, `GET`, `Content-Type`, `X-Tild-Session-Id`.
+- **Origin:** `https://beruui.netlify.app` (and optionally `http://localhost:3000` for dev).
+- **Methods/headers:** `POST`, `GET`, `Content-Type`, `X-Beru-Session-Id`.
 
-Current code: `CORS(app)` in `tild_api.py` (all origins). If chat fails only from Netlify but works from `npm start`, fix CORS first.
+Current code: `CORS(app)` in `beru_api.py` (all origins). If chat fails only from Netlify but works from `npm start`, fix CORS first.
 
 ### 3. Session id for conversation collection (implemented)
 
-On every `POST /chat` and `POST /voice/chat`, after Tild replies, append:
+On every `POST /chat` and `POST /voice/chat`, after Beru replies, append:
 
 ```text
 user: <human message>
-tild: <tild reply>
+beru: <beru reply>
 ```
 
 To: `data/collected_conversations/{session_id}.txt` (one file per visitor).
 
-**Read session id in this order** (`tild_api._collector_session_id`):
+**Read session id in this order** (`beru_api._collector_session_id`):
 
-1. Header: `X-Tild-Session-Id: <uuid>` ← UI sends this on every request  
+1. Header: `X-Beru-Session-Id: <uuid>` ← UI sends this on every request  
 2. JSON: `"session_id": "<uuid>"` on `/chat`  
 3. Form: `session_id` on `/voice/chat`  
 4. Fallback: client IP (avoid for production guests)
@@ -101,20 +101,20 @@ To: `data/collected_conversations/{session_id}.txt` (one file per visitor).
 |------|------|
 | `src/conversation_collector.py` | Writes files |
 | `src/pipeline.py` | Calls collector after each turn |
-| `tild_api.py` | Reads session id and passes it in |
+| `beru_api.py` | Reads session id and passes it in |
 
 **Env vars (Mac):**
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `TILD_COLLECT_CONVERSATIONS` | `1` | Logging on |
-| `TILD_COLLECT_EXCLUDE_OWNER` | `1` | Skip Omar after owner password |
-| `TILD_COLLECT_DIR` | (empty) | Default `data/collected_conversations/` |
+| `BERU_COLLECT_CONVERSATIONS` | `1` | Logging on |
+| `BERU_COLLECT_EXCLUDE_OWNER` | `1` | Skip Omar after owner password |
+| `BERU_COLLECT_DIR` | (empty) | Default `data/collected_conversations/` |
 
 - **Check:** `GET /health` → `"conversation_collection": true`  
-- **Restart:** `python3 tild_api.py`  
+- **Restart:** `python3 beru_api.py`  
 - **Label data:** move `.txt` to `good/` or `bad/` under collected folder.  
-- **Test:** Guest chat on Netlify → new `{uuid}.txt` on Mac with `user:` / `tild:` lines (not owner session).
+- **Test:** Guest chat on Netlify → new `{uuid}.txt` on Mac with `user:` / `beru:` lines (not owner session).
 
 See also: [COLLECTING_CONVERSATIONS.md](./COLLECTING_CONVERSATIONS.md)
 
@@ -141,15 +141,15 @@ See also: [COLLECTING_CONVERSATIONS.md](./COLLECTING_CONVERSATIONS.md)
 
 ### 6. Owner vs guest
 
-- Owner login (Omar + password) should still work; collection should exclude owner when `TILD_COLLECT_EXCLUDE_OWNER=1`.
+- Owner login (Omar + password) should still work; collection should exclude owner when `BERU_COLLECT_EXCLUDE_OWNER=1`.
 
 ---
 
 ## Quick test checklist (both repos)
 
-1. Mac: `python3 tild_api.py` + `ngrok http 8000`
+1. Mac: `python3 beru_api.py` + `ngrok http 8000`
 2. Netlify: `REACT_APP_API_URL` = your ngrok **HTTPS** URL → **clear cache deploy**
-3. Mac browser: `https://tildui.netlify.app` → send message (should hit ngrok → Mac)
+3. Mac browser: `https://beruui.netlify.app` → send message (should hit ngrok → Mac)
 4. iPhone: same URL; allow mic for voice
 5. Mac: `data/collected_conversations/<uuid>.txt` grows for guest (not owner)
 6. `GET /health` shows collection enabled
@@ -161,14 +161,14 @@ See also: [COLLECTING_CONVERSATIONS.md](./COLLECTING_CONVERSATIONS.md)
 | Mistake | Symptom |
 |---------|---------|
 | Netlify `REACT_APP_API_URL` = `http://192.168.x.x:8000` | Build fails (mixed content check) or phone can’t connect |
-| Netlify URL = `https://abc123.ngrok-free.app` (example) | “Cannot reach Tild at https://abc123…” |
+| Netlify URL = `https://abc123.ngrok-free.app` (example) | “Cannot reach Beru at https://abc123…” |
 | ngrok stopped or URL changed | Netlify still has old URL until redeploy |
-| UI opened ngrok URL instead of Netlify | Wrong app; use **tildui.netlify.app** for chat |
-| No `X-Tild-Session-Id` / `session_id` | One file per IP or missing logs |
+| UI opened ngrok URL instead of Netlify | Wrong app; use **beruui.netlify.app** for chat |
+| No `X-Beru-Session-Id` / `session_id` | One file per IP or missing logs |
 | API only on `127.0.0.1` | ngrok/LAN/Netlify can’t reach Mac |
 
 ---
 
 ## One-line prompt for backend agent
 
-> Match tild-ui: API on `0.0.0.0:8000`, CORS for `https://tildui.netlify.app` and `X-Tild-Session-Id`, read `session_id` on `/chat` and `/voice/chat`, conversation collector to `data/collected_conversations/{session_id}.txt`, health shows `conversation_collection`, voice accepts m4a/mp4. UI sends session UUID via header + body/form; Netlify uses HTTPS ngrok in `REACT_APP_API_URL`.
+> Match beru-ui: API on `0.0.0.0:8000`, CORS for `https://beruui.netlify.app` and `X-Beru-Session-Id`, read `session_id` on `/chat` and `/voice/chat`, conversation collector to `data/collected_conversations/{session_id}.txt`, health shows `conversation_collection`, voice accepts m4a/mp4. UI sends session UUID via header + body/form; Netlify uses HTTPS ngrok in `REACT_APP_API_URL`.

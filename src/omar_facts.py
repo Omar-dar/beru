@@ -1,11 +1,11 @@
-"""Timestamped facts Omar asks Tild to remember."""
+"""Timestamped facts Omar asks Beru to remember."""
 
 import re
 from datetime import date, datetime
 
 from src.relative_dates import infer_event_date_from_text
 
-# Arabic possessive ـي -> ـك (my X -> your X) when Tild speaks to Omar
+# Arabic possessive ـي -> ـك (my X -> your X) when Beru speaks to Omar
 _AR_POSSESSIVE_Y = re.compile(
     r'([\u0621-\u064A\u064B-\u0652])ي(?=\s|$|[،.؟!:])'
 )
@@ -73,7 +73,7 @@ def _ar_to_second_person(text):
 
 def owner_fact_for_reply(text, language='en'):
     """
-    Rewrite Omar's first-person memory for Tild to say to him.
+    Rewrite Omar's first-person memory for Beru to say to him.
     Storage keeps Omar's wording (jag/min, my, لوني); replies use you/your/لونك.
     """
     if not text:

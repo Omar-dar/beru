@@ -24,11 +24,11 @@ with open(output_file,"w",encoding="utf8") as out:
         for i in range(0, len(msgs)-1, 2):
 
             human = msgs[i]
-            tild = msgs[i+1]
+            beru = msgs[i+1]
 
             out.write(
 f"""### Human: {human}
-### Tild: {tild}
+### Beru: {beru}
 
 """
 )

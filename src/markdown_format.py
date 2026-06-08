@@ -1,4 +1,4 @@
-"""Format Tild responses for ChatGPT-style markdown UI (tild-ui)."""
+"""Format Beru responses for ChatGPT-style markdown UI (beru-ui)."""
 
 import re
 import textwrap
@@ -6,7 +6,7 @@ import textwrap
 from src.text_style import strip_long_dashes
 
 # Training-data leaks that break UI rendering
-_TRAINING_MARKERS = re.compile(r'^### (Human|Tild):\s*', re.MULTILINE)
+_TRAINING_MARKERS = re.compile(r'^### (Human|Beru):\s*', re.MULTILINE)
 
 # Detect indented code-like blocks not already in fences
 _CODE_BLOCK = re.compile(
@@ -39,7 +39,7 @@ def unwrap_prose_markdown_fences(text):
 
 def format_response_for_ui(text):
     """
-    Normalize a reply string before sending to tild-ui.
+    Normalize a reply string before sending to beru-ui.
     The UI expects ONE markdown string in ChatResponse.response.
     """
     if not text:

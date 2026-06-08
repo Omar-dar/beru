@@ -1,4 +1,4 @@
-"""Normalize punctuation in user-facing Tild text."""
+"""Normalize punctuation in user-facing Beru text."""
 
 import re
 

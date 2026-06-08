@@ -15,7 +15,7 @@ def owner_display_name(language='en', *, full=False):
         return OWNER_FULL_NAME_AR if full else OWNER_NAME_AR
     return OWNER_FULL_NAME if full else OWNER_NAME
 
-TILD_IDENTITY_PATH = 'data/tild_identity.json'
+BERU_IDENTITY_PATH = 'data/beru_identity.json'
 OMAR_PROFILE_PATH = 'data/omar_profile.json'
 
 OMAR_PERSONAL_TRIGGERS = [
@@ -47,15 +47,15 @@ OMAR_ONLY_TRIGGERS = [
     'berätta om omar', 'vem är omar', 'this omar', 'that omar',
 ]
 
-TILD_SELF_TRIGGERS = [
+BERU_SELF_TRIGGERS = [
     'who are you', 'what are you', 'about you', 'your name', 'your purpose',
     'built you', 'made you', 'created you', 'your creator', 'who made you',
     'who built you', 'who created you', 'what can you do', 'are you an ai',
     'vem är du', 'vad är du', 'vad heter du', 'vem skapade dig', 'vem byggde dig',
-    'berätta om dig', 'hur fungerar du', 'what is tild',
+    'berätta om dig', 'hur fungerar du', 'what is beru',
 ]
 
-TILD_EXPERIENCE_TRIGGERS = [
+BERU_EXPERIENCE_TRIGGERS = [
     'did you have fun', 'had fun', 'have fun today', 'have fun', 'enjoy today',
     'did you enjoy', 'do you feel', 'how do you feel', 'are you happy',
     'did you like talking', 'was it fun', 'did you have a good day',
@@ -66,7 +66,7 @@ TILD_EXPERIENCE_TRIGGERS = [
     'hur mår du', 'roligt idag',
 ]
 
-TILD_ACTIVITY_TRIGGERS = [
+BERU_ACTIVITY_TRIGGERS = [
     'what are you doing', 'whatcha doing', 'what you doing', 'what u doing',
     'what are you up to', 'what you up to', 'what are u doing', 'what r u doing',
     'vad gör du', 'vad håller du på med',
@@ -74,7 +74,7 @@ TILD_ACTIVITY_TRIGGERS = [
     'what are you going to do today', 'vad vill du göra', 'ماذا تريد أن تفعل',
 ]
 
-SEARCH_BLOCK_TRIGGERS = OMAR_PERSONAL_TRIGGERS + TILD_SELF_TRIGGERS + [
+SEARCH_BLOCK_TRIGGERS = OMAR_PERSONAL_TRIGGERS + BERU_SELF_TRIGGERS + [
     'do you know me', 'do you know who i am', 'what is my name', 'who am i',
 ]
 
@@ -106,7 +106,7 @@ CATEGORY_TOPIC_WORDS = {
         'school', 'utbildning', 'kandidat', 'examen', 'student', 'course', 'betyg',
     ],
     'skills': ['skills', 'skill', 'programming', 'tech', 'framework', 'färdigheter'],
-    'projects': ['projects', 'project', 'tild', 'treely', 'built', 'projekt'],
+    'projects': ['projects', 'project', 'beru', 'treely', 'built', 'projekt'],
     'work': ['work', 'job', 'restaurant', 'karlstad', 'server', 'arbete'],
     'languages': ['languages', 'language', 'speak', 'svenska', 'arabic', 'fluent'],
 }
@@ -128,9 +128,9 @@ def _load_json(path):
         return json.load(f)
 
 
-class TildKnowledge:
+class BeruKnowledge:
     def __init__(self):
-        self.tild_identity = _load_json(TILD_IDENTITY_PATH)
+        self.beru_identity = _load_json(BERU_IDENTITY_PATH)
         self.omar_profile = _load_json(OMAR_PROFILE_PATH)
         self.learned_omar_facts = []
 
@@ -193,34 +193,34 @@ class TildKnowledge:
             return True
         return any(trigger in text_lower for trigger in OMAR_ONLY_TRIGGERS)
 
-    def is_tild_self_question(self, text):
+    def is_beru_self_question(self, text):
         text_lower = text.lower()
-        if self.is_tild_activity_question(text):
+        if self.is_beru_activity_question(text):
             return False
         if re.search(r'what are you (doing|up to)', text_lower):
             return False
-        return any(trigger in text_lower for trigger in TILD_SELF_TRIGGERS)
+        return any(trigger in text_lower for trigger in BERU_SELF_TRIGGERS)
 
-    def is_tild_activity_question(self, text):
+    def is_beru_activity_question(self, text):
         text_lower = text.lower()
-        return any(trigger in text_lower for trigger in TILD_ACTIVITY_TRIGGERS)
+        return any(trigger in text_lower for trigger in BERU_ACTIVITY_TRIGGERS)
 
-    def is_tild_experience_question(self, text):
+    def is_beru_experience_question(self, text):
         text_lower = text.lower()
-        return any(trigger in text_lower for trigger in TILD_EXPERIENCE_TRIGGERS)
+        return any(trigger in text_lower for trigger in BERU_EXPERIENCE_TRIGGERS)
 
     def should_block_search(self, text, is_owner=False):
         text_lower = text.lower()
         if self.is_omar_personal_question(text, is_owner):
             return True
-        if self.is_tild_self_question(text):
+        if self.is_beru_self_question(text):
             return True
         return any(trigger in text_lower for trigger in SEARCH_BLOCK_TRIGGERS)
 
-    def get_tild_identity_prompt(self):
-        identity = self.tild_identity
+    def get_beru_identity_prompt(self):
+        identity = self.beru_identity
         lines = [
-            f"Your name is {identity.get('name', 'Tild')}.",
+            f"Your name is {identity.get('name', 'Beru')}.",
             f"You were built from scratch by {identity.get('creator', OWNER_FULL_NAME)} using Python and PyTorch.",
             identity.get('type', 'Personal AI assistant') + '.',
         ]
@@ -235,7 +235,7 @@ class TildKnowledge:
         lines = [
             f"Permanent facts about {OWNER_FULL_NAME} (your creator and owner):",
             f"- Full name: {profile.get('full_name', OWNER_FULL_NAME)}",
-            f"- Role: {profile.get('role', 'Creator of Tild')}",
+            f"- Role: {profile.get('role', 'Creator of Beru')}",
             f"- University: {profile.get('university', 'University of Gothenburg')}",
             f"- Degree: {profile.get('degree', 'Software Engineering')}",
             f"- Location: {profile.get('location', 'Gothenburg, Sweden')}",
@@ -257,7 +257,7 @@ class TildKnowledge:
 
     @staticmethod
     def _to_second_person(text, name=OWNER_FULL_NAME, first_name=OWNER_NAME):
-        """Rewrite stored facts so Tild speaks directly to Omar."""
+        """Rewrite stored facts so Beru speaks directly to Omar."""
         if not text:
             return text
         out = text
@@ -474,7 +474,7 @@ class TildKnowledge:
         )
 
     def format_omar_profile_summary(self, language='en', learned_facts=None):
-        """Short overview  -  facts about Omar vs instructions he gave Tild."""
+        """Short overview  -  facts about Omar vs instructions he gave Beru."""
         profile = self.omar_profile
         facts = learned_facts or self.learned_omar_facts
         instructions, document_facts = self._split_learned_facts(facts)
@@ -519,7 +519,7 @@ class TildKnowledge:
         return ' '.join(parts)
 
     def format_omar_recall_for_owner(self, learned_facts=None, language='en'):
-        """Only what Omar explicitly asked Tild to remember  -  not CV bio facts."""
+        """Only what Omar explicitly asked Beru to remember  -  not CV bio facts."""
         facts = learned_facts or self.learned_omar_facts
         instructions, _ = self._split_learned_facts(facts)
 
@@ -567,7 +567,7 @@ class TildKnowledge:
         keyword_map = [
             (['university', 'universitet', 'school', 'college', 'study', 'studera'], 'university'),
             (['degree', 'program', 'software engineering', 'examen'], 'degree'),
-            (['project', 'built', 'build', 'create', 'projekt', 'tild'], 'tild'),
+            (['project', 'built', 'build', 'create', 'projekt', 'beru'], 'beru'),
             (['location', 'live', 'from', 'gothenburg', 'bor', 'stad'], 'location'),
             (['name', 'full name', 'heter', 'darwish'], 'name'),
             (['skill', 'passion', 'smart', 'talented', 'engineer'], 'skills'),
@@ -629,7 +629,7 @@ class TildKnowledge:
         if language == 'ar':
             return (
                 f"{ack}"
-                f"عمر دارويش هو من أنشأني ومالكي. بنى Tild من الصفر بلغة Python. "
+                f"عمر دارويش هو من أنشأني ومالكي. بنى Beru من الصفر بلغة Python. "
                 f"يدرس هندسة البرمجيات وإدارة الأعمال في جامعة غوتنبرغ. "
                 f"سألتُ إن كنت Omar لأنه الوحيد الذي يؤكد هويته بكلمة المرور. أنت {guest}."
             )
@@ -640,24 +640,24 @@ class TildKnowledge:
             f"{GUEST_DETAIL_OFFER_EN}"
         )
 
-    def answer_tild_self_question(self, text, language='en', memory=None):
+    def answer_beru_self_question(self, text, language='en', memory=None):
         text_lower = text.lower()
-        identity = self.tild_identity
+        identity = self.beru_identity
         creator = identity.get('creator', OWNER_FULL_NAME)
         is_owner = memory is not None and memory.is_owner()
 
         if any(k in text_lower for k in ['name', 'heter', 'called']):
             if is_owner:
                 if language == 'sv':
-                    return 'Jag heter Tild. Du gav mig namnet när du skapade mig.'
+                    return 'Jag heter Beru. Du gav mig namnet när du skapade mig.'
                 if language == 'ar':
-                    return 'اسمي Tild. أنت Omar أعطيتني الاسم عندما أنشأتني.'
-                return 'My name is Tild. You gave me that name when you created me.'
+                    return 'اسمي Beru. أنت Omar أعطيتني الاسم عندما أنشأتني.'
+                return 'My name is Beru. You gave me that name when you created me.'
             if language == 'sv':
-                return f'Jag heter Tild. {creator} gav mig namnet när han skapade mig.'
+                return f'Jag heter Beru. {creator} gav mig namnet när han skapade mig.'
             if language == 'ar':
-                return f'اسمي Tild. {creator} أعطاني الاسم عندما أنشأني.'
-            return f"My name is Tild. {creator} gave me this name when he created me."
+                return f'اسمي Beru. {creator} أعطاني الاسم عندما أنشأني.'
+            return f"My name is Beru. {creator} gave me this name when he created me."
 
         if any(k in text_lower for k in ['who built', 'who made', 'who created', 'creator', 'skapade', 'byggde']):
             if is_owner:
@@ -691,35 +691,35 @@ class TildKnowledge:
             )
 
         if any(k in text_lower for k in ['what are you', 'who are you', 'vad är du', 'vem är du']):
-            if self.is_tild_activity_question(text):
+            if self.is_beru_activity_question(text):
                 return None
             if is_owner:
                 if language == 'sv':
                     return (
-                        'Jag är Tild, din personliga AI. Du byggde mig från grunden. '
+                        'Jag är Beru, din personliga AI. Du byggde mig från grunden. '
                         'Jag pratar svenska, engelska och arabiska.'
                     )
                 if language == 'ar':
                     return (
-                        'أنا Tild، مساعدك الشخصي. أنت بنيتني من الصفر. '
+                        'أنا Beru، مساعدك الشخصي. أنت بنيتني من الصفر. '
                         'أتحدث السويدية والإنجليزية والعربية.'
                     )
                 return (
-                    'I am Tild, your personal AI assistant. You built me from scratch. '
+                    'I am Beru, your personal AI assistant. You built me from scratch. '
                     'I speak English, Swedish, and Arabic.'
                 )
             if language == 'sv':
                 return (
-                    f'Jag är Tild, en personlig AI-assistent som {creator} byggde från grunden. '
+                    f'Jag är Beru, en personlig AI-assistent som {creator} byggde från grunden. '
                     f'Jag pratar svenska, engelska och arabiska.'
                 )
             if language == 'ar':
                 return (
-                    f'أنا Tild، مساعد ذكاء اصطناعي شخصي. {creator} بناني من الصفر. '
+                    f'أنا Beru، مساعد ذكاء اصطناعي شخصي. {creator} بناني من الصفر. '
                     f'أتحدث السويدية والإنجليزية والعربية.'
                 )
             return (
-                f'I am Tild, a personal AI assistant built from scratch by {creator}. '
+                f'I am Beru, a personal AI assistant built from scratch by {creator}. '
                 f'I speak English, Swedish, and Arabic.'
             )
 
@@ -746,7 +746,7 @@ class TildKnowledge:
             return facts[0]
         return None
 
-    def _is_tild_wants_today_question(self, text):
+    def _is_beru_wants_today_question(self, text):
         if not text:
             return False
         tl = text.lower()
@@ -759,10 +759,10 @@ class TildKnowledge:
             return any(t in tl for t in today_words) or 'want to do' in tl
         return False
 
-    def answer_tild_activity_question(self, text, language='en', memory=None):
-        """What Tild is doing / wants  -  honest AI, no human hobbies or feelings."""
-        if self._is_tild_wants_today_question(text):
-            return self._answer_tild_wants_today(text, language, memory)
+    def answer_beru_activity_question(self, text, language='en', memory=None):
+        """What Beru is doing / wants  -  honest AI, no human hobbies or feelings."""
+        if self._is_beru_wants_today_question(text):
+            return self._answer_beru_wants_today(text, language, memory)
 
         if memory and memory.is_owner():
             if language == 'sv':
@@ -778,7 +778,7 @@ class TildKnowledge:
             return f'أتحدث معك الآن يا {name}، ومستعد للمساعدة.'
         return f'I am here chatting with you, {name}, ready to help with whatever you need.'
 
-    def _answer_tild_wants_today(self, text, language='en', memory=None):
+    def _answer_beru_wants_today(self, text, language='en', memory=None):
         """Do not invent projects, chill plans, or assumptions about the user's week."""
         is_owner = memory is not None and memory.is_owner()
         if language == 'sv':
@@ -814,7 +814,7 @@ class TildKnowledge:
             "I am here to chat and help you. What would you like to do today?"
         )
 
-    def answer_tild_experience_question(self, text, language='en', memory=None):
+    def answer_beru_experience_question(self, text, language='en', memory=None):
         activity = ''
         if memory:
             from datetime import date

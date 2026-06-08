@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "=== Tild: Python environment ==="
+echo "=== Beru: Python environment ==="
 if [[ ! -d .venv ]]; then
   python3 -m venv .venv
 fi
@@ -18,13 +18,13 @@ pip install -r requirements.txt
 mkdir -p models data
 
 echo ""
-echo "=== Tild: Deep brain (Ollama) ==="
+echo "=== Beru: Deep brain (Ollama) ==="
 bash "$ROOT/scripts/install_deep_brain.sh"
 
 echo ""
 echo "=== Done ==="
 echo "Optional: fine-tune local GPT-2 weights (not required for chat/API):"
-echo "  source .venv/bin/activate && python3 tild.py finetune"
+echo "  source .venv/bin/activate && python3 beru.py finetune"
 echo ""
-echo "Run API:  source .venv/bin/activate && python3 tild_api.py"
-echo "Run chat: source .venv/bin/activate && python3 tild.py chat"
+echo "Run API:  source .venv/bin/activate && python3 beru_api.py"
+echo "Run chat: source .venv/bin/activate && python3 beru.py chat"

@@ -1,4 +1,4 @@
-"""Relative date parsing for Tild memory."""
+"""Relative date parsing for Beru memory."""
 
 from datetime import datetime
 

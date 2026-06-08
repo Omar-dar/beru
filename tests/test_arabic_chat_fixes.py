@@ -2,17 +2,17 @@
 
 import unittest
 
-from src.memory import TildMemory
+from src.memory import BeruMemory
 from src.omar_questions import is_asking_about_omar_person, is_umrah_or_hajj_topic
 
 
 class TestArabicChatFixes(unittest.TestCase):
     def test_la_in_alakhira_not_correction(self):
-        mem = TildMemory.__new__(TildMemory)
+        mem = BeruMemory.__new__(BeruMemory)
         self.assertFalse(mem.is_correction('ما اسباب حرب غزة الاخيره'))
 
     def test_confirmation_not_correction(self):
-        mem = TildMemory.__new__(TildMemory)
+        mem = BeruMemory.__new__(BeruMemory)
         self.assertTrue(mem.is_user_confirmation('يعني كلامي صح'))
         self.assertFalse(mem.is_correction('يعني كلامي صح'))
 
@@ -25,7 +25,7 @@ class TestArabicChatFixes(unittest.TestCase):
         self.assertTrue(is_asking_about_omar_person('من هو Omar Darwish'))
 
     def test_bad_correction_not_reused(self):
-        mem = TildMemory.__new__(TildMemory)
+        mem = BeruMemory.__new__(BeruMemory)
         mem.corrections = [{
             'question': 'galaxy age',
             'wrong': 'wrong',

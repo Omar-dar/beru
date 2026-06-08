@@ -6,7 +6,7 @@ import tempfile
 import subprocess
 from dotenv import load_dotenv
 
-from src.pipeline import TildPipeline
+from src.pipeline import BeruPipeline
 from src.language import detect_language
 from src.voice import synthesize_speech, transcribe_file
 
@@ -14,7 +14,7 @@ load_dotenv()
 
 
 def speak(text, language="en"):
-    print(f"Tild: {text}")
+    print(f"Beru: {text}")
     audio_bytes, mime = synthesize_speech(text, language)
     suffix = '.mp3' if 'mpeg' in mime else '.wav'
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
@@ -81,14 +81,14 @@ def transcribe_audio(audio, sample_rate, language_hint=None):
 
 
 def voice_chat():
-    pipeline = TildPipeline()
+    pipeline = BeruPipeline()
 
     print("Loading speech recognition (first use may download the model)...")
     from src.voice import _get_stt_model
     _get_stt_model()
 
     greeting = pipeline.start_session(clear_history=False)
-    print(f"\nTild: {greeting}")
+    print(f"\nBeru: {greeting}")
     speak(greeting)
     print("\nPress Enter to speak, type 'quit' to exit\n")
 

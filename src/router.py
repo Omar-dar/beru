@@ -126,8 +126,8 @@ def should_use_search(text, memory):
 
 def route_request(user_input, memory, is_analysis_fn=None, search=None):
     """
-    Decide how Tild should answer:
-    - memory: identity, Omar/Tild facts, corrections
+    Decide how Beru should answer:
+    - memory: identity, Omar/Beru facts, corrections
     - brain: creative, conversational, reasoning
     - rag: high-confidence stored Q&A only
     - search: weather / general web facts

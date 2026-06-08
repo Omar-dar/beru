@@ -1,4 +1,4 @@
-"""Text direction metadata for Arabic UI rendering (tild-ui sets dir=rtl)."""
+"""Text direction metadata for Arabic UI rendering (beru-ui sets dir=rtl)."""
 
 import re
 

@@ -7,7 +7,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Optional
 
-_client_session_id: ContextVar[Optional[str]] = ContextVar('tild_client_session_id', default=None)
+_client_session_id: ContextVar[Optional[str]] = ContextVar('beru_client_session_id', default=None)
 
 
 @dataclass
@@ -17,7 +17,7 @@ class ClientState:
 
 
 class ClientSessionStore:
-    """One identity + conversation history per X-Tild-Session-Id / session_id."""
+    """One identity + conversation history per X-Beru-Session-Id / session_id."""
 
     def __init__(self, memory):
         self._memory = memory

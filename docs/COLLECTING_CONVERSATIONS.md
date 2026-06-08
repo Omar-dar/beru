@@ -1,29 +1,29 @@
-# Collecting conversations (backend + tild-ui)
+# Collecting conversations (backend + beru-ui)
 
 Use this when the GUI is on **Netlify** and the API runs on your **Mac**. Each guest turn is saved on the Mac as training-style text.
 
 ---
 
-## What the backend does (already in `tild`)
+## What the backend does (already in `beru`)
 
 ### Files added/changed
 
 | File | Role |
 |------|------|
-| `src/conversation_collector.py` | Appends `user:` / `tild:` lines to disk |
+| `src/conversation_collector.py` | Appends `user:` / `beru:` lines to disk |
 | `src/pipeline.py` | After each reply, calls `collect_turn(...)` if a session id is present |
-| `tild_api.py` | Reads session id from the request and passes it to `chat_turn` |
+| `beru_api.py` | Reads session id from the request and passes it to `chat_turn` |
 | `data/collected_conversations/` | Output folder (`.txt` per browser session) |
 | `.gitignore` | Ignores `*.txt` in that folder |
 
 ### When it logs
 
-- Every **`POST /chat`** and **`POST /voice/chat`** turn (after Tild’s reply is ready).
+- Every **`POST /chat`** and **`POST /voice/chat`** turn (after Beru’s reply is ready).
 - Format per turn:
 
 ```text
 user: <what the human sent>
-tild: <what Tild answered>
+beru: <what Beru answered>
 ```
 
 - One file per session: `data/collected_conversations/{session_id}.txt`
@@ -31,20 +31,20 @@ tild: <what Tild answered>
 
 ### How the backend gets `session_id`
 
-Priority in `tild_api._collector_session_id()`:
+Priority in `beru_api._collector_session_id()`:
 
-1. HTTP header **`X-Tild-Session-Id`**
+1. HTTP header **`X-Beru-Session-Id`**
 2. JSON field **`session_id`** on `/chat`
 3. Form field **`session_id`** on `/voice/chat`
 4. Fallback: client IP (not ideal for Netlify — **use a UUID in the UI**)
 
-### Environment variables (Mac, before `python3 tild_api.py`)
+### Environment variables (Mac, before `python3 beru_api.py`)
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `TILD_COLLECT_CONVERSATIONS` | `1` | `1` = log files, `0` = off |
-| `TILD_COLLECT_EXCLUDE_OWNER` | `1` | `1` = do **not** log Omar after password login |
-| `TILD_COLLECT_DIR` | (empty) | Custom folder; default `data/collected_conversations` |
+| `BERU_COLLECT_CONVERSATIONS` | `1` | `1` = log files, `0` = off |
+| `BERU_COLLECT_EXCLUDE_OWNER` | `1` | `1` = do **not** log Omar after password login |
+| `BERU_COLLECT_DIR` | (empty) | Custom folder; default `data/collected_conversations` |
 
 ### Check it works
 
@@ -74,20 +74,20 @@ Or add `# label: bad` at the top. Use good pairs later in `data/conversation_dat
 
 ### Per-browser sessions
 
-Identity and chat history are **separate per `X-Tild-Session-Id`** (`src/client_sessions.py`). Omar on Mac does not log the phone in as Omar. Omar’s facts in `memory.json` are still shared. **Restart** `python3 tild_api.py` after pulling this change.
+Identity and chat history are **separate per `X-Beru-Session-Id`** (`src/client_sessions.py`). Omar on Mac does not log the phone in as Omar. Omar’s facts in `memory.json` are still shared. **Restart** `python3 beru_api.py` after pulling this change.
 
 ---
 
-## What to do in **tild-ui** (so it matches the backend)
+## What to do in **beru-ui** (so it matches the backend)
 
 The UI must send the **same session id on every request** from that browser (store in `localStorage`).
 
-### 1. Create `src/utils/tildSession.ts`
+### 1. Create `src/utils/beruSession.ts`
 
 ```typescript
-const SESSION_KEY = 'tild_session_id'
+const SESSION_KEY = 'beru_session_id'
 
-export function getTildSessionId(): string {
+export function getBeruSessionId(): string {
   let id = localStorage.getItem(SESSION_KEY)
   if (!id) {
     id =
@@ -105,13 +105,13 @@ export function getTildSessionId(): string {
 At the top, after imports:
 
 ```typescript
-import { getTildSessionId } from '../utils/tildSession'
+import { getBeruSessionId } from '../utils/beruSession'
 
 export const API_URL =
   process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:8000'
 
 /** Same id on every request so the Mac logs one file per visitor */
-axios.defaults.headers.common['X-Tild-Session-Id'] = getTildSessionId()
+axios.defaults.headers.common['X-Beru-Session-Id'] = getBeruSessionId()
 ```
 
 In `sendMessage`, also send `session_id` in the body (optional backup if headers are stripped):
@@ -124,7 +124,7 @@ export const sendMessage = async (
   const body: ChatRequest = {
     message,
     ...options,
-    session_id: getTildSessionId(),
+    session_id: getBeruSessionId(),
   }
   const response = await axios.post<ChatResponse>(`${API_URL}/chat`, body)
   return response.data
@@ -134,7 +134,7 @@ export const sendMessage = async (
 In `voiceChat`, append session id to the form:
 
 ```typescript
-  formData.append('session_id', getTildSessionId())
+  formData.append('session_id', getBeruSessionId())
 ```
 
 ### 3. Update `src/types/index.ts`
@@ -164,14 +164,14 @@ Examples:
 On the Mac, run API listening on the network:
 
 ```python
-# last line of tild_api.py should be:
+# last line of beru_api.py should be:
 app.run(host='0.0.0.0', port=8000, debug=False)
 ```
 
 ### 5. Deploy flow
 
-1. Mac: `export TILD_COLLECT_CONVERSATIONS=1` (default) and start `python3 tild_api.py`
-2. Netlify: set `REACT_APP_API_URL`, deploy `tild-ui`
+1. Mac: `export BERU_COLLECT_CONVERSATIONS=1` (default) and start `python3 beru_api.py`
+2. Netlify: set `REACT_APP_API_URL`, deploy `beru-ui`
 3. Send testers the Netlify link
 4. Read logs on the Mac under `data/collected_conversations/`
 
@@ -186,6 +186,6 @@ app.run(host='0.0.0.0', port=8000, debug=False)
 
 ---
 
-## Copy-paste block for the tild-ui repo
+## Copy-paste block for the beru-ui repo
 
-> Wire session collection: add `src/utils/tildSession.ts` with `getTildSessionId()` (localStorage UUID). In `api.ts` set `axios.defaults.headers.common['X-Tild-Session-Id'] = getTildSessionId()`, add `session_id` to `ChatRequest` and `sendMessage`, append `session_id` in `voiceChat` FormData. Extend `ChatRequest` type with optional `session_id`. Backend already logs `user:` / `tild:` to `data/collected_conversations/{session_id}.txt` when this header or field is sent.
+> Wire session collection: add `src/utils/beruSession.ts` with `getBeruSessionId()` (localStorage UUID). In `api.ts` set `axios.defaults.headers.common['X-Beru-Session-Id'] = getBeruSessionId()`, add `session_id` to `ChatRequest` and `sendMessage`, append `session_id` in `voiceChat` FormData. Extend `ChatRequest` type with optional `session_id`. Backend already logs `user:` / `beru:` to `data/collected_conversations/{session_id}.txt` when this header or field is sent.

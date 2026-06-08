@@ -45,15 +45,15 @@ STT_INITIAL_PROMPTS = {
 
 
 def _stt_backend():
-    return os.getenv('TILD_STT_BACKEND', 'faster-whisper').strip().lower()
+    return os.getenv('BERU_STT_BACKEND', 'faster-whisper').strip().lower()
 
 
 def _tts_backend():
-    return os.getenv('TILD_TTS_BACKEND', 'edge').strip().lower()
+    return os.getenv('BERU_TTS_BACKEND', 'edge').strip().lower()
 
 
 def _whisper_model_name():
-    return os.getenv('TILD_WHISPER_MODEL', 'medium')
+    return os.getenv('BERU_WHISPER_MODEL', 'medium')
 
 
 def is_tts_available():
@@ -72,13 +72,13 @@ def capabilities():
         'stt': True,
         'stt_engine': _stt_backend(),
         'whisper_model': _whisper_model_name(),
-        'whisper_compute_type': os.getenv('TILD_WHISPER_COMPUTE_TYPE', 'int8'),
+        'whisper_compute_type': os.getenv('BERU_WHISPER_COMPUTE_TYPE', 'int8'),
         'tts_engine': _tts_backend(),
         'tts_server': is_tts_available(),
         'tts_voices': EDGE_VOICES if _tts_backend() == 'edge' else MACOS_VOICES,
         'tts_note': (
             'Default: faster-whisper (medium) + edge-tts neural voices — free, no API keys. '
-            'Set TILD_STT_BACKEND=whisper or TILD_TTS_BACKEND=macos to use older stack.'
+            'Set BERU_STT_BACKEND=whisper or BERU_TTS_BACKEND=macos to use older stack.'
         ),
         'supported_upload_extensions': sorted(SUPPORTED_AUDIO_EXTENSIONS),
         'recommended_record_format': 'audio/webm or audio/wav',
@@ -107,8 +107,8 @@ def _get_stt_model():
         if backend == 'faster-whisper':
             from faster_whisper import WhisperModel
 
-            device = os.getenv('TILD_WHISPER_DEVICE', 'cpu')
-            compute_type = os.getenv('TILD_WHISPER_COMPUTE_TYPE', 'int8')
+            device = os.getenv('BERU_WHISPER_DEVICE', 'cpu')
+            compute_type = os.getenv('BERU_WHISPER_COMPUTE_TYPE', 'int8')
             print(
                 f'Loading faster-whisper "{model_name}" '
                 f'(device={device}, compute={compute_type})...'
@@ -121,7 +121,7 @@ def _get_stt_model():
         else:
             import whisper
 
-            device = os.getenv('TILD_WHISPER_DEVICE', 'cpu')
+            device = os.getenv('BERU_WHISPER_DEVICE', 'cpu')
             print(f'Loading openai-whisper "{model_name}" ({device})...')
             _stt_model = ('whisper', whisper.load_model(model_name, device=device))
 
@@ -198,7 +198,7 @@ async def _edge_tts_to_file(text, voice, out_path):
 
 
 def _edge_voice_for_language(language):
-    key = f'TILD_EDGE_VOICE_{language.upper()}'
+    key = f'BERU_EDGE_VOICE_{language.upper()}'
     return os.getenv(key) or EDGE_VOICES.get(language, EDGE_VOICES['en'])
 
 
@@ -235,7 +235,7 @@ def synthesize_speech(text, language='en', *, max_chars=2000):
 
     raise RuntimeError(
         f'TTS backend "{backend}" is not available. Install edge-tts (pip install edge-tts) '
-        'or use TILD_TTS_BACKEND=macos on macOS.'
+        'or use BERU_TTS_BACKEND=macos on macOS.'
     )
 
 

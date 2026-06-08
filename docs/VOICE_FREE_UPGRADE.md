@@ -1,6 +1,6 @@
 # Free voice upgrade (hear + speak better)
 
-Tild now defaults to **free** tools that are much closer to “smart assistant” quality than `whisper small` + macOS `say`.
+Beru now defaults to **free** tools that are much closer to “smart assistant” quality than `whisper small` + macOS `say`.
 
 ## Install
 
@@ -15,11 +15,11 @@ First run downloads the **medium** Whisper model (~1.5 GB, one time).
 ## Defaults (in `.env`)
 
 ```env
-TILD_STT_BACKEND=faster-whisper
-TILD_WHISPER_MODEL=medium
-TILD_WHISPER_DEVICE=cpu
-TILD_WHISPER_COMPUTE_TYPE=int8
-TILD_TTS_BACKEND=edge
+BERU_STT_BACKEND=faster-whisper
+BERU_WHISPER_MODEL=medium
+BERU_WHISPER_DEVICE=cpu
+BERU_WHISPER_COMPUTE_TYPE=int8
+BERU_TTS_BACKEND=edge
 ```
 
 | Setting | What it does |
@@ -28,7 +28,7 @@ TILD_TTS_BACKEND=edge
 | **medium** | Much better accents / Swedish / Arabic than `small` |
 | **edge-tts** | Free Microsoft **neural** voices (EN, SV, AR) — no API key |
 
-Restart API: `python3 tild_api.py`
+Restart API: `python3 beru_api.py`
 
 ## Slow responses?
 
@@ -37,18 +37,18 @@ Each voice turn runs: **Whisper (CPU)** → **Ollama** → **TTS**. That takes t
 Speed up hearing (`.env`):
 
 ```env
-TILD_WHISPER_MODEL=small
+BERU_WHISPER_MODEL=small
 ```
 
 GUI: use `include_audio=true` on `/voice/chat` (one HTTP call instead of chat + speak).
 
 ## Two voices at once?
 
-Your UI is probably playing **both** server MP3 and **browser** `speechSynthesis`. Use only one — see `TILD_UI_VOICE_INTEGRATION.md`.
+Your UI is probably playing **both** server MP3 and **browser** `speechSynthesis`. Use only one — see `BERU_UI_VOICE_INTEGRATION.md`.
 
 ## GUI: send language every voice request
 
-Wrong language detection is the #1 issue with code-switching. In tild-ui:
+Wrong language detection is the #1 issue with code-switching. In beru-ui:
 
 ```javascript
 form.append('language', userSelectedLang); // 'en' | 'sv' | 'ar'
@@ -66,29 +66,29 @@ new Audio(URL.createObjectURL(blob)).play();
 Try smaller model (still better than old default):
 
 ```env
-TILD_WHISPER_MODEL=small
+BERU_WHISPER_MODEL=small
 ```
 
 Or larger (best hearing, slower):
 
 ```env
-TILD_WHISPER_MODEL=large-v3
+BERU_WHISPER_MODEL=large-v3
 ```
 
 ## Fallback to old stack
 
 ```env
-TILD_STT_BACKEND=whisper
-TILD_WHISPER_MODEL=small
-TILD_TTS_BACKEND=macos
+BERU_STT_BACKEND=whisper
+BERU_WHISPER_MODEL=small
+BERU_TTS_BACKEND=macos
 ```
 
 ## Voice map (override in `.env`)
 
 ```env
-TILD_EDGE_VOICE_EN=en-US-JennyNeural
-TILD_EDGE_VOICE_SV=sv-SE-SofieNeural
-TILD_EDGE_VOICE_AR=ar-SA-ZariyahNeural
+BERU_EDGE_VOICE_EN=en-US-JennyNeural
+BERU_EDGE_VOICE_SV=sv-SE-SofieNeural
+BERU_EDGE_VOICE_AR=ar-SA-ZariyahNeural
 ```
 
 List more: `edge-tts --list-voices | grep -E 'sv-SE|ar-|en-US'`

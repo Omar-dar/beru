@@ -5,8 +5,8 @@ import tempfile
 import unittest
 
 from src.client_sessions import bind_client_session, reset_client_session
-from src.memory import TildMemory
-from src.pipeline import TildPipeline
+from src.memory import BeruMemory
+from src.pipeline import BeruPipeline
 
 
 class TestClientSessions(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestClientSessions(unittest.TestCase):
         os.unlink(self.memory_path)
 
     def test_owner_on_one_device_does_not_identify_another(self):
-        memory = TildMemory(memory_path=self.memory_path)
+        memory = BeruMemory(memory_path=self.memory_path)
 
         mac = bind_client_session('mac-browser-uuid')
         try:
@@ -45,8 +45,8 @@ class TestClientSessions(unittest.TestCase):
             reset_client_session(phone)
 
     def test_hello_on_phone_not_greeted_as_omar_after_mac_login(self):
-        pipeline = TildPipeline(load_model=False)
-        pipeline.memory = TildMemory(memory_path=self.memory_path)
+        pipeline = BeruPipeline(load_model=False)
+        pipeline.memory = BeruMemory(memory_path=self.memory_path)
 
         mac = bind_client_session('mac-session')
         try:

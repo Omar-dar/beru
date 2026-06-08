@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from src.config import TildConfig
+from src.config import BeruConfig
 
-cfg = TildConfig()
+cfg = BeruConfig()
 
 class Head(nn.Module):
     def __init__(self, head_size):
@@ -62,7 +62,7 @@ class Block(nn.Module):
         x = x + self.ff(self.ln2(x))
         return x
 
-class Tild(nn.Module):
+class Beru(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         self.token_embedding    = nn.Embedding(vocab_size, cfg.n_embd)

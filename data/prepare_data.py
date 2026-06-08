@@ -10,8 +10,8 @@ for item in dataset:
         human = item["text"].strip()
         output.append(f"### Human: {human}")
     elif item["role"] == "assistant" and item["lang"] == "en":
-        tild = item["text"].strip()
-        output.append(f"### Tild: {tild}")
+        beru = item["text"].strip()
+        output.append(f"### Beru: {beru}")
         output.append("")
 
 print(f"Processed {len(output)} lines!")

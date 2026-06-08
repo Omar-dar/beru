@@ -9,7 +9,7 @@ _DEFAULT_DIR = Path(__file__).resolve().parent.parent / 'data' / 'collected_conv
 
 
 def collection_enabled():
-    return os.getenv('TILD_COLLECT_CONVERSATIONS', '1').strip().lower() in (
+    return os.getenv('BERU_COLLECT_CONVERSATIONS', '1').strip().lower() in (
         '1', 'true', 'yes', 'on',
     )
 
@@ -19,13 +19,13 @@ def _enabled():
 
 
 def _exclude_owner():
-    return os.getenv('TILD_COLLECT_EXCLUDE_OWNER', '1').strip().lower() in (
+    return os.getenv('BERU_COLLECT_EXCLUDE_OWNER', '1').strip().lower() in (
         '1', 'true', 'yes', 'on',
     )
 
 
 def collect_dir():
-    raw = (os.getenv('TILD_COLLECT_DIR') or '').strip()
+    raw = (os.getenv('BERU_COLLECT_DIR') or '').strip()
     return Path(raw) if raw else _DEFAULT_DIR
 
 
@@ -57,7 +57,7 @@ def _write_header(path, *, session_id, memory, source, new_chat):
                 f'# session_id: {session_id}\n'
                 f'# user: {user_label}\n'
                 f'# started: {datetime.now().isoformat(timespec="seconds")}\n'
-                f'# format: user: / tild: (one pair per turn)\n'
+                f'# format: user: / beru: (one pair per turn)\n'
                 f'# label good/bad by moving this file under good/ or bad/ when done\n\n'
             )
         if source:
@@ -68,7 +68,7 @@ def collect_turn(
     *,
     session_id,
     user_message,
-    tild_response,
+    beru_response,
     memory=None,
     source=None,
     new_chat=False,
@@ -83,8 +83,8 @@ def collect_turn(
         return None
 
     user_message = (user_message or '').strip()
-    tild_response = (tild_response or '').strip()
-    if not user_message and not tild_response:
+    beru_response = (beru_response or '').strip()
+    if not user_message and not beru_response:
         return None
 
     directory = collect_dir()
@@ -103,8 +103,8 @@ def collect_turn(
     block = ''
     if user_message:
         block += f'user: {user_message}\n'
-    if tild_response:
-        block += f'tild: {tild_response}\n'
+    if beru_response:
+        block += f'beru: {beru_response}\n'
     block += '\n'
 
     with path.open('a', encoding='utf-8') as f:

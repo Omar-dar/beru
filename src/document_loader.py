@@ -50,8 +50,8 @@ def _import_fitz():
         except ImportError as exc:
             raise ImportError(
                 'PyMuPDF is not installed in this Python. '
-                'From the tild folder run: .venv/bin/python3 -m pip install pymupdf pdfplumber '
-                'then start the API with: .venv/bin/python3 tild.py api'
+                'From the beru folder run: .venv/bin/python3 -m pip install pymupdf pdfplumber '
+                'then start the API with: .venv/bin/python3 beru.py api'
             ) from exc
 
 

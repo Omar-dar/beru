@@ -1,6 +1,6 @@
-# Tild UI ↔ Backend integration (voice + session summary)
+# Beru UI ↔ Backend integration (voice + session summary)
 
-Use this document in the **tild-ui** repo so the GUI matches the **tild** API backend.
+Use this document in the **beru-ui** repo so the GUI matches the **beru** API backend.
 
 **Base URL (local dev):** `http://localhost:8000`
 
@@ -21,7 +21,7 @@ Use this document in the **tild-ui** repo so the GUI matches the **tild** API ba
 
 ```json
 {
-  "message": "Hello Tild",
+  "message": "Hello Beru",
   "new_chat": false,
   "document_id": "optional-doc-id-from-upload"
 }
@@ -43,7 +43,7 @@ Use this document in the **tild-ui** repo so the GUI matches the **tild** API ba
 }
 ```
 
-`text_direction` is `"rtl"` when `language` is `"ar"`. **tild-ui must set `dir="rtl"`** (and ideally `text-align: right`) on the message bubble when `text_direction === "rtl"`. Do not inject Unicode bidi control characters into `response` — the UI renders them as visible junk (e.g. ⁧ ⁩).
+`text_direction` is `"rtl"` when `language` is `"ar"`. **beru-ui must set `dir="rtl"`** (and ideally `text-align: right`) on the message bubble when `text_direction === "rtl"`. Do not inject Unicode bidi control characters into `response` — the UI renders them as visible junk (e.g. ⁧ ⁩).
 
 `GET /start?language=ar` and `POST /clear` also return `text_direction` for the greeting.
 
@@ -57,7 +57,7 @@ Use this document in the **tild-ui** repo so the GUI matches the **tild** API ba
 |--------|--------|----------|
 | Capabilities | `GET` | `/voice/capabilities` |
 | Speech → text only | `POST` | `/voice/transcribe` |
-| Speech → full Tild reply | `POST` | `/voice/chat` |
+| Speech → full Beru reply | `POST` | `/voice/chat` |
 | Text → speech (macOS server) | `POST` | `/voice/speak` |
 
 **Free upgrade (default):** `faster-whisper` + **`medium`** model + **edge-tts** neural voices. See `docs/VOICE_FREE_UPGRADE.md`.
@@ -151,7 +151,7 @@ HTTP `422`.
 }
 ```
 
-**Response:** `audio/mpeg` (MP3) with edge-tts, or `audio/wav` if `TILD_TTS_BACKEND=macos`.
+**Response:** `audio/mpeg` (MP3) with edge-tts, or `audio/wav` if `BERU_TTS_BACKEND=macos`.
 
 ```javascript
 const audio = new Audio(URL.createObjectURL(await res.blob()));
@@ -177,7 +177,7 @@ const res = await fetch('http://localhost:8000/voice/chat', {
 });
 const data = await res.json();
 // Show data.transcript as "You said: ..."
-// Show data.response as Tild message (markdown)
+// Show data.response as Beru message (markdown)
 ```
 
 ### 2. Play reply — pick ONE method (fixes “two voices”)
@@ -207,9 +207,9 @@ Only `POST /voice/speak` after `/voice/chat` — **do not** use browser `speechS
 ```javascript
 function stopAnyPlayingAudio() {
   window.speechSynthesis?.cancel();
-  if (window.__tildAudio) {
-    window.__tildAudio.pause();
-    window.__tildAudio = null;
+  if (window.__beruAudio) {
+    window.__beruAudio.pause();
+    window.__beruAudio = null;
   }
 }
 ```
@@ -224,7 +224,7 @@ function stopAnyPlayingAudio() {
 
 Unchanged: text `/chat` handles Omar password gate. Voice uses the same session after `/start`. If `awaiting_owner_confirm` from `/start`, user may need to **type** password (or transcribe "yes" + password in a second voice turn).
 
-Environment on backend: `TILD_OMAR_PASSWORD` in `.env` (not sent to UI).
+Environment on backend: `BERU_OMAR_PASSWORD` in `.env` (not sent to UI).
 
 ---
 
@@ -236,19 +236,19 @@ Environment on backend: `TILD_OMAR_PASSWORD` in `.env` (not sent to UI).
 | **RAG** | `data.txt`, `conversation_data.txt`, `personality_data.txt` |
 | **Memory** | `data/memory.json`, corrections, Omar facts |
 | **Whisper** | Voice STT in API |
-| **GPT-2 `models/tild_v2`** | Not loaded by default (`load_model=False`) |
+| **GPT-2 `models/beru_v2`** | Not loaded by default (`load_model=False`) |
 
 After factory reset Mac:
 
 ```bash
 ./scripts/setup_machine.sh   # venv + pip + Ollama
-# .env: TILD_OMAR_PASSWORD=...
-python3 tild_api.py
+# .env: BERU_OMAR_PASSWORD=...
+python3 beru_api.py
 ```
 
 Adding facts: edit `data/data.txt`, restart API (no `train.py` needed).
 
-Ollama answers can auto-append to `data/conversation_data.txt` when `source` is `brain` and learning applies (`[Tild learned from brain]` in server logs).
+Ollama answers can auto-append to `data/conversation_data.txt` when `source` is `brain` and learning applies (`[Beru learned from brain]` in server logs).
 
 ---
 
@@ -262,18 +262,18 @@ API enables `flask-cors` for all origins — GUI on another port (e.g. Vite `517
 
 | Variable | Purpose |
 |----------|---------|
-| `TILD_OMAR_PASSWORD` | Omar gate password |
-| `TILD_STT_BACKEND` | `faster-whisper` (or `whisper`) |
-| `TILD_WHISPER_MODEL` | Default `medium` |
-| `TILD_WHISPER_DEVICE` | Default `cpu` |
-| `TILD_WHISPER_COMPUTE_TYPE` | Default `int8` |
-| `TILD_TTS_BACKEND` | `edge` (or `macos`) |
-| `TILD_EDGE_VOICE_SV` etc. | Optional neural voice IDs |
+| `BERU_OMAR_PASSWORD` | Omar gate password |
+| `BERU_STT_BACKEND` | `faster-whisper` (or `whisper`) |
+| `BERU_WHISPER_MODEL` | Default `medium` |
+| `BERU_WHISPER_DEVICE` | Default `cpu` |
+| `BERU_WHISPER_COMPUTE_TYPE` | Default `int8` |
+| `BERU_TTS_BACKEND` | `edge` (or `macos`) |
+| `BERU_EDGE_VOICE_SV` etc. | Optional neural voice IDs |
 | `OPENWEATHER_KEY` | Weather search (optional) |
 
 ---
 
-## Checklist for tild-ui PR
+## Checklist for beru-ui PR
 
 - [ ] Mic button → `POST /voice/chat` with `FormData`
 - [ ] Display `transcript` + `response`

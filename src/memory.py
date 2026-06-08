@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from src.knowledge import (
-    TildKnowledge,
+    BeruKnowledge,
     OWNER_NAME,
     OWNER_FULL_NAME,
     owner_display_name,
@@ -213,7 +213,7 @@ GREETING_WORDS = {
 }
 
 
-class TildMemory:
+class BeruMemory:
     def __init__(self, memory_path='data/memory.json'):
         self.memory_path = memory_path
         self._cli_session = self._empty_session()
@@ -221,7 +221,7 @@ class TildMemory:
         self.corrections = []
         self.known_users = {}
         self.learned_omar_facts = []
-        self.knowledge = TildKnowledge()
+        self.knowledge = BeruKnowledge()
         from src.client_sessions import ClientSessionStore
 
         self.client_sessions = ClientSessionStore(self)
@@ -294,6 +294,9 @@ class TildMemory:
                 self.corrections = data.get('corrections', [])
                 self.known_users = data.get('known_users', {})
                 self._cli_conversation_history = data.get('conversation_history', [])
+                for msg in self._cli_conversation_history:
+                    if msg.get('role') == 'tild':
+                        msg['role'] = 'beru'
                 self.learned_omar_facts = normalize_fact_entries(
                     data.get('learned_omar_facts', [])
                 )
@@ -310,17 +313,17 @@ class TildMemory:
 
                 self._migrate_known_users()
 
-            print(f"Tild remembered {len(self.corrections)} corrections!")
+            print(f"Beru remembered {len(self.corrections)} corrections!")
             if self.known_users:
                 names = ', '.join(
                     u.get('full_name') or uid
                     for uid, u in self.known_users.items()
                 )
-                print(f"Tild remembers people: {names}")
+                print(f"Beru remembers people: {names}")
             if self.is_owner_permanently_verified():
-                print(f"Tild permanently remembers {OWNER_FULL_NAME} as creator and owner!")
+                print(f"Beru permanently remembers {OWNER_FULL_NAME} as creator and owner!")
         else:
-            print("Tild starting with fresh memory!")
+            print("Beru starting with fresh memory!")
 
     def save_memory(self):
         from src.client_sessions import get_bound_client_session_id
@@ -454,7 +457,7 @@ class TildMemory:
             'visit_count': 0,
         }
         self.save_memory()
-        print(f"Tild registered new user: {full_name} ({user_id})")
+        print(f"Beru registered new user: {full_name} ({user_id})")
         return user_id
 
     def identify_guest(self, user_id, language='en'):
@@ -480,7 +483,7 @@ class TildMemory:
         user['last_seen'] = datetime.now().isoformat()
         self._record_visit(user_id)
         self.save_memory()
-        print(f"Tild is now talking to: {user['full_name']}")
+        print(f"Beru is now talking to: {user['full_name']}")
 
     def _record_visit(self, user_id):
         user = self.known_users.get(user_id)
@@ -650,7 +653,7 @@ class TildMemory:
         if recent_msgs:
             lines.append("Snippets from past conversations (NOT the current chat):")
             for msg in reversed(recent_msgs):
-                role = 'Human' if msg['role'] == 'human' else 'Tild'
+                role = 'Human' if msg['role'] == 'human' else 'Beru'
                 lines.append(f"- {role}: {msg['text'][:200]}")
         return '\n'.join(lines)
 
@@ -913,7 +916,7 @@ class TildMemory:
         if is_owner:
             self._record_visit(OWNER_NAME)
         self.save_memory()
-        print(f"Tild is now talking to: {display_name}" + (" (owner)" if is_owner else ""))
+        print(f"Beru is now talking to: {display_name}" + (" (owner)" if is_owner else ""))
 
     def ask_to_identify(self, language='en'):
         if language == 'sv':
@@ -942,7 +945,7 @@ class TildMemory:
             if msg['role'] == 'human':
                 context += f"### Human: {msg['text']}\n"
             else:
-                context += f"### Tild: {msg['text']}\n"
+                context += f"### Beru: {msg['text']}\n"
         return context
 
     def get_identity_context(self):
@@ -993,9 +996,9 @@ class TildMemory:
         self.save_memory()
 
         with open('data/data.txt', 'a', encoding='utf-8') as f:
-            f.write(f"\n### Human: {question}\n### Tild: {correct_answer}\n")
+            f.write(f"\n### Human: {question}\n### Beru: {correct_answer}\n")
 
-        print(f"Tild learned: {question} → {correct_answer}")
+        print(f"Beru learned: {question} → {correct_answer}")
 
     def is_user_confirmation(self, text):
         """User agrees their correction was right — not a new correction."""
@@ -1184,7 +1187,7 @@ class TildMemory:
     def clear_invalid_guest_identity(self):
         if not self.is_invalid_guest_identity():
             return False
-        print(f"Tild cleared invalid guest identity: {self.get_user_name()!r}")
+        print(f"Beru cleared invalid guest identity: {self.get_user_name()!r}")
         self.start_session(clear_history=False)
         return True
 
@@ -1309,7 +1312,7 @@ class TildMemory:
         self.learned_omar_facts.append(entry)
         self.knowledge.set_learned_facts(self.learned_omar_facts)
         self.save_memory()
-        print(f"Tild remembered from Omar: {text}")
+        print(f"Beru remembered from Omar: {text}")
         return True
 
     def is_omar_remember_instruction(self, text):
@@ -1629,7 +1632,7 @@ class TildMemory:
         )
 
     def is_casual_conversation_reply(self, text):
-        """Short replies to Tild's question/offer  -  not factual questions."""
+        """Short replies to Beru's question/offer  -  not factual questions."""
         if not self.is_session_identified():
             return False
 
@@ -1650,13 +1653,13 @@ class TildMemory:
             if text_lower not in {'good', 'fine', 'okay', 'ok', 'sure', 'yeah', 'yes', 'no', 'nah', 'nope'}:
                 return False
 
-        recent_tild = [m for m in self.conversation_history if m['role'] == 'tild']
-        if not recent_tild:
+        recent_beru = [m for m in self.conversation_history if m['role'] == 'beru']
+        if not recent_beru:
             return False
-        last_tild = recent_tild[-1]['text'].lower()
+        last_beru = recent_beru[-1]['text'].lower()
         return (
-            '?' in last_tild
-            or any(w in last_tild for w in (
+            '?' in last_beru
+            or any(w in last_beru for w in (
                 'want', 'would you', 'do you', 'can i', 'shall i', 'need',
                 'like some', 'how about', 'interested', 'would you like',
                 'tea', 'help', 'suggest', 'recommend', 'anything else',
@@ -1688,19 +1691,19 @@ class TildMemory:
             return True
         return False
 
-    def is_tild_experience_question(self, text):
-        return self.knowledge.is_tild_experience_question(text)
+    def is_beru_experience_question(self, text):
+        return self.knowledge.is_beru_experience_question(text)
 
-    def is_tild_activity_question(self, text):
-        return self.knowledge.is_tild_activity_question(text)
+    def is_beru_activity_question(self, text):
+        return self.knowledge.is_beru_activity_question(text)
 
-    def answer_tild_activity_question(self, user_input='', language='en'):
-        return self.knowledge.answer_tild_activity_question(
+    def answer_beru_activity_question(self, user_input='', language='en'):
+        return self.knowledge.answer_beru_activity_question(
             user_input, language, memory=self
         )
 
-    def answer_tild_experience_question(self, language='en'):
-        return self.knowledge.answer_tild_experience_question('', language, memory=self)
+    def answer_beru_experience_question(self, language='en'):
+        return self.knowledge.answer_beru_experience_question('', language, memory=self)
 
     def is_asking_about_other_person(self, text):
         if self.is_owner():
@@ -2097,22 +2100,22 @@ class TildMemory:
         if self.is_owner():
             if language == 'sv':
                 return (
-                    'Du pratar med mig, Tild! Jag vet att du är Omar, '
+                    'Du pratar med mig, Beru! Jag vet att du är Omar, '
                     'min skapare och bästa kompis.'
                 )
             if language == 'ar':
                 return (
-                    'أنت تتحدث معي، Tild! أعرف أنك Omar، من أنشأني وأفضل صديق لي.'
+                    'أنت تتحدث معي، Beru! أعرف أنك Omar، من أنشأني وأفضل صديق لي.'
                 )
             return (
-                'You are talking to me, Tild! I know you are Omar, '
+                'You are talking to me, Beru! I know you are Omar, '
                 'my creator and best bro.'
             )
         if language == 'sv':
-            return f'Du pratar med mig, Tild! Just nu pratar jag med dig, {name}.'
+            return f'Du pratar med mig, Beru! Just nu pratar jag med dig, {name}.'
         if language == 'ar':
-            return f'أنت تتحدث معي، Tild! أنا أتحدث معك الآن يا {name}.'
-        return f'You are talking to me, Tild! Right now I am talking with you, {name}.'
+            return f'أنت تتحدث معي، Beru! أنا أتحدث معك الآن يا {name}.'
+        return f'You are talking to me, Beru! Right now I am talking with you, {name}.'
 
     def is_date_clarification(self, text):
         if not self.is_owner():
@@ -2189,7 +2192,7 @@ class TildMemory:
             return False
         recent = self.conversation_history[-6:]
         combined = ' '.join(
-            m['text'].lower() for m in recent if m.get('role') == 'tild'
+            m['text'].lower() for m in recent if m.get('role') == 'beru'
         )
         markers = (
             'متى', 'when', 'när', 'عام', 'year', 'år', 'تاريخ', 'date',
@@ -2280,7 +2283,7 @@ class TildMemory:
         return self.is_owner() and self.is_today_activity_question(text)
 
     def respond_today_question_before_identify(self, language='en'):
-        """User asked about their day before Tild knows who is speaking."""
+        """User asked about their day before Beru knows who is speaking."""
         if self.is_awaiting_owner_confirm():
             if language == 'sv':
                 return (
@@ -2322,7 +2325,7 @@ class TildMemory:
     def _awaiting_today_story(self):
         if self.session.get('prompted_today_story'):
             return True
-        recent = [m for m in self.conversation_history if m.get('role') == 'tild']
+        recent = [m for m in self.conversation_history if m.get('role') == 'beru']
         if not recent:
             return False
         last = recent[-1]['text'].lower()
@@ -2538,18 +2541,18 @@ class TildMemory:
         return f'Yeah bro, you {summary} today. How did it feel?'
 
     def answer_from_knowledge(self, user_input, language='en'):
-        if self.knowledge.is_tild_activity_question(user_input):
-            return self.knowledge.answer_tild_activity_question(
+        if self.knowledge.is_beru_activity_question(user_input):
+            return self.knowledge.answer_beru_activity_question(
                 user_input, language, memory=self
             )
 
-        if self.knowledge.is_tild_experience_question(user_input):
-            return self.knowledge.answer_tild_experience_question(
+        if self.knowledge.is_beru_experience_question(user_input):
+            return self.knowledge.answer_beru_experience_question(
                 user_input, language, memory=self
             )
 
-        if self.knowledge.is_tild_self_question(user_input):
-            answer = self.knowledge.answer_tild_self_question(
+        if self.knowledge.is_beru_self_question(user_input):
+            answer = self.knowledge.answer_beru_self_question(
                 user_input, language, memory=self
             )
             if answer:
@@ -2575,7 +2578,7 @@ class TildMemory:
         self.identify_session(OWNER_NAME, language, is_owner=True)
         self.known_users[OWNER_NAME]['permanently_verified'] = True
         self.save_memory()
-        print(f"Tild saved {OWNER_NAME} as owner permanently!")
+        print(f"Beru saved {OWNER_NAME} as owner permanently!")
 
     def set_user(self, name, language='en', notes=''):
         """Legacy helper  -  prefer register_full_name for guests."""
@@ -2624,10 +2627,10 @@ class TildMemory:
                 return f'مرحباً! هل أنت {OWNER_NAME}؟'
             return f'Hey! Is that you {OWNER_NAME}?'
         if language == 'sv':
-            return 'Hej! Jag är Tild. Vem pratar jag med?'
+            return 'Hej! Jag är Beru. Vem pratar jag med?'
         if language == 'ar':
-            return 'مرحباً! أنا Tild. مع من أتحدث؟'
-        return 'Hey! I am Tild. Who am I talking to?'
+            return 'مرحباً! أنا Beru. مع من أتحدث؟'
+        return 'Hey! I am Beru. Who am I talking to?'
 
     def formal_greeting(self, name, language='en'):
         display = name if ' ' in name else name

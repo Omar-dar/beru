@@ -55,21 +55,21 @@ class TestArabicNameGate(unittest.TestCase):
 
     def test_not_omar_negation(self):
         from src.language import is_arabic_negation, detect_arabic_full_name
-        from src.memory import TildMemory
+        from src.memory import BeruMemory
 
         self.assertTrue(is_arabic_negation('لست عمر'))
         self.assertIsNone(detect_arabic_full_name('لست عمر'))
-        mem = TildMemory.__new__(TildMemory)
+        mem = BeruMemory.__new__(BeruMemory)
         self.assertTrue(mem.is_negative('لست عمر'))
 
     def test_name_intro_not_name_question(self):
         from src.language import is_arabic_name_intro_statement, is_name_intro_statement
-        from src.memory import TildMemory
+        from src.memory import BeruMemory
 
         self.assertTrue(is_arabic_name_intro_statement('اسمي خالد'))
         self.assertTrue(is_arabic_name_intro_statement('انا خالد'))
         self.assertTrue(is_name_intro_statement('my name is Khaled'))
-        mem = TildMemory.__new__(TildMemory)
+        mem = BeruMemory.__new__(BeruMemory)
         self.assertFalse(mem.is_name_question('اسمي خالد'))
         self.assertFalse(mem.is_name_question('انا خالد'))
 

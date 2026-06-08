@@ -6,7 +6,7 @@ import os
 import wave
 import struct
 
-from src.pipeline import TildPipeline
+from src.pipeline import BeruPipeline
 
 MIC_RATE = 16000
 SPK_RATE = 22050
@@ -16,7 +16,7 @@ print("Loading Whisper...")
 whisper_model = whisper.load_model("small", device="cpu")
 print("Whisper ready!")
 
-pipeline = TildPipeline(load_model=False)
+pipeline = BeruPipeline(load_model=False)
 
 
 def audio_to_wav(audio_data, sample_rate, path):
@@ -97,7 +97,7 @@ while True:
 
         turn = pipeline.chat_turn(text, format_for_ui=False)
         response = turn['response']
-        print(f"Tild: {response}")
+        print(f"Beru: {response}")
 
         print("Converting to speech...")
         speech_data = text_to_speech(response)

@@ -13,7 +13,7 @@ OPENWEATHER_KEY = os.getenv('OPENWEATHER_KEY')
 # Fix SSL for Mac
 ssl._create_default_https_context = ssl._create_unverified_context
 
-class TildSearch:
+class BeruSearch:
     def __init__(self):
         wikipedia.set_lang('en')
 

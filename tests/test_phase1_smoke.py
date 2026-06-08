@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.markdown_format import format_for_ui, unwrap_prose_markdown_fences
 from src.learning import is_learnable_exchange, append_conversation_pair
-from src.memory import TildMemory
+from src.memory import BeruMemory
 
 
 def test_markdown_unwrap():
@@ -42,9 +42,9 @@ def test_memory_routing():
     users_text = "who have you talked to".lower()
     assert any(t in users_text for t in OWNER_USERS_TRIGGERS)
 
-    memory = TildMemory()
-    assert not memory.is_tild_activity_question("what are you")
-    assert memory.is_tild_activity_question("what are you doing")
+    memory = BeruMemory()
+    assert not memory.is_beru_activity_question("what are you")
+    assert memory.is_beru_activity_question("what are you doing")
     print("OK  memory routing triggers")
 
 
@@ -73,7 +73,7 @@ def test_learning_rules():
 
 
 def test_owner_routing():
-    memory = TildMemory()
+    memory = BeruMemory()
     memory.session = {
         'identified': True,
         'name': 'Omar',
@@ -86,8 +86,8 @@ def test_owner_routing():
     assert memory.is_owner_users_full_list_request('list all users')
     assert not memory.is_omar_recall_instructions('list all users')
 
-    from src.knowledge import TildKnowledge
-    knowledge = TildKnowledge()
+    from src.knowledge import BeruKnowledge
+    knowledge = BeruKnowledge()
     answer = knowledge.answer_omar_question(
         'what do you know about me', 'en', learned_facts=[]
     )
@@ -104,17 +104,17 @@ def test_question_not_detected_as_name():
     assert detect_full_name(q) is None
     assert detect_name(q) is None
 
-    from src.document_index import TildDocumentIndex
-    assert TildDocumentIndex.is_document_question('what is this docoment abot')
-    assert not TildDocumentIndex.is_document_question(
+    from src.document_index import BeruDocumentIndex
+    assert BeruDocumentIndex.is_document_question('what is this docoment abot')
+    assert not BeruDocumentIndex.is_document_question(
         'good i will send you a docoment can you tell me what is say'
     )
-    assert TildDocumentIndex.is_pre_upload_document_intent(
+    assert BeruDocumentIndex.is_pre_upload_document_intent(
         'good i will send you a docoment can you tell me what is say'
     )
-    assert TildDocumentIndex.is_document_question('what did my cv say?')
-    assert TildDocumentIndex.is_document_question('but i does try reading it again')
-    assert TildDocumentIndex.is_remember_from_document_intent(
+    assert BeruDocumentIndex.is_document_question('what did my cv say?')
+    assert BeruDocumentIndex.is_document_question('but i does try reading it again')
+    assert BeruDocumentIndex.is_remember_from_document_intent(
         'i want you to remember those info in this docoment about me'
     )
     print('OK  questions not parsed as names')
@@ -159,9 +159,9 @@ def test_cv_not_marked_incomplete():
 
 
 def test_owner_profile_summary_voice():
-    from src.knowledge import TildKnowledge
+    from src.knowledge import BeruKnowledge
 
-    knowledge = TildKnowledge()
+    knowledge = BeruKnowledge()
     facts = [
         "Don't give me suggestions when I ask for code, only give me when i ask",
         'Omar Darwish is a student in Software Engineering and Management at Göteborgs universitet',

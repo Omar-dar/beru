@@ -1,21 +1,21 @@
 {
   "full_name": "Omar Darwish",
   "first_name": "Omar",
-  "role": "Creator and owner of Tild",
+  "role": "Creator and owner of Beru",
   "university": "University of Gothenburg",
   "degree": "Software Engineering",
   "location": "Gothenburg, Sweden",
   "languages": ["English", "Swedish", "Arabic"],
   "projects": [
-    "Tild - personal AI built from scratch with Python and PyTorch",
-    "Tild transformer architecture (decoder-only, GPT-style)",
-    "Tild training and fine-tuning pipeline (tild_v2)",
-    "Tild RAG memory system with sentence-transformers",
-    "Tild voice chat with Whisper speech-to-text",
-    "Tild ESP32-S3 robot integration"
+    "Beru - personal AI built from scratch with Python and PyTorch",
+    "Beru transformer architecture (decoder-only, GPT-style)",
+    "Beru training and fine-tuning pipeline (beru_v2)",
+    "Beru RAG memory system with sentence-transformers",
+    "Beru voice chat with Whisper speech-to-text",
+    "Beru ESP32-S3 robot integration"
   ],
   "milestones": [
-    "Built Tild transformer architecture from scratch",
+    "Built Beru transformer architecture from scratch",
     "Created training and fine-tuning pipeline",
     "Added RAG, conversation memory, and active learning from corrections",
     "Added multilingual support (English, Swedish, Arabic)",
@@ -24,12 +24,12 @@
   ],
   "topics": {
     "name": "Omar Darwish",
-    "creator": "Omar Darwish built Tild completely from scratch. He is Tild's creator and owner.",
+    "creator": "Omar Darwish built Beru completely from scratch. He is Beru's creator and owner.",
     "university": "Omar Darwish studies at the University of Gothenburg.",
     "degree": "Omar Darwish is a software engineering student.",
     "location": "Omar Darwish is based in Gothenburg, Sweden.",
-    "tild": "Omar Darwish created Tild as his personal AI project using Python and PyTorch.",
+    "beru": "Omar Darwish created Beru as his personal AI project using Python and PyTorch.",
     "skills": "Omar Darwish is passionate about AI, machine learning, and software engineering.",
-    "github": "Omar keeps the Tild project on GitHub (github.com/Omar-dar/tild)."
+    "github": "Omar keeps the Beru project on GitHub (github.com/Omar-dar/beru)."
   }
 }

@@ -14,7 +14,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from src.client_sessions import bind_client_session, reset_client_session
-from src.pipeline import TildPipeline
+from src.pipeline import BeruPipeline
 from src.text_direction import text_direction_for_language
 from src.text_style import strip_long_dashes
 from src.voice import (
@@ -29,15 +29,15 @@ from src.voice import (
 app = Flask(__name__)
 CORS(app)
 
-pipeline = TildPipeline()
+pipeline = BeruPipeline()
 
 MAX_UPLOAD_MB = 20
 MAX_AUDIO_MB = 25
 ALLOWED_EXTENSIONS = {'.pdf'}
 
-print("Tild API ready!")
+print("Beru API ready!")
 
-if os.getenv('TILD_PRELOAD_VOICE', '1').strip().lower() in ('1', 'true', 'yes'):
+if os.getenv('BERU_PRELOAD_VOICE', '1').strip().lower() in ('1', 'true', 'yes'):
     import threading
     threading.Thread(target=preload_stt_model, daemon=True).start()
 
@@ -49,7 +49,7 @@ def _allowed_file(filename):
 
 def _collector_session_id():
     """Per-browser id from Netlify UI (localStorage) or fallback to IP."""
-    header = (request.headers.get('X-Tild-Session-Id') or '').strip()
+    header = (request.headers.get('X-Beru-Session-Id') or '').strip()
     if header:
         return header
     if request.is_json:
@@ -235,7 +235,7 @@ def health():
     doc_count = len(pipeline.rag.document_index.documents)
     return jsonify({
         'status': 'ok',
-        'message': 'Tild API is running',
+        'message': 'Beru API is running',
         'documents_indexed': doc_count,
         'conversation_collection': collection_enabled(),
         'conversation_collect_dir': str(collect_dir()),
@@ -332,7 +332,7 @@ def voice_chat():
 def voice_speak():
     if not is_tts_available():
         return jsonify({
-            'error': 'TTS not available. pip install edge-tts or set TILD_TTS_BACKEND=macos on macOS.',
+            'error': 'TTS not available. pip install edge-tts or set BERU_TTS_BACKEND=macos on macOS.',
         }), 501
 
     data = request.json or {}

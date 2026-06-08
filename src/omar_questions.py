@@ -59,7 +59,7 @@ def is_asking_about_omar_person(text):
 
 
 def is_omar_info_wrong_feedback(text):
-    """User says Tild's facts about Omar are wrong (not a fact correction)."""
+    """User says Beru's facts about Omar are wrong (not a fact correction)."""
     if not text:
         return False
     raw = text.strip()

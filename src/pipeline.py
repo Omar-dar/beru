@@ -1,34 +1,34 @@
-"""Shared Tild response pipeline for API, CLI, voice, and robot."""
+"""Shared Beru response pipeline for API, CLI, voice, and robot."""
 
-from chat.chat import get_response, load_tild
+from chat.chat import get_response, load_beru
 from src.deep_brain import DeepBrain
-from src.entities import TildEntityRecognizer
+from src.entities import BeruEntityRecognizer
 from src.language import detect_language
 from src.learning import learn_from_exchange
 from src.markdown_format import format_for_ui as apply_ui_format
 from src.text_direction import strip_bidi_controls, text_direction_for_language
 from src.text_style import strip_long_dashes
 from src.client_sessions import bind_client_session, reset_client_session
-from src.memory import TildMemory
-from src.rag import TildRAG
-from src.search import TildSearch
+from src.memory import BeruMemory
+from src.rag import BeruRAG
+from src.search import BeruSearch
 
 
-class TildPipeline:
+class BeruPipeline:
     """Load once, use everywhere — same routing, formatting, and learning."""
 
     def __init__(self, *, load_model=False):
-        print("Loading Tild pipeline...")
-        self.rag = TildRAG()
-        self.memory = TildMemory()
-        self.search = TildSearch()
-        self.ner = TildEntityRecognizer()
+        print("Loading Beru pipeline...")
+        self.rag = BeruRAG()
+        self.memory = BeruMemory()
+        self.search = BeruSearch()
+        self.ner = BeruEntityRecognizer()
         self.brain = DeepBrain()
         if load_model:
-            self.model, self.tokenizer = load_tild()
+            self.model, self.tokenizer = load_beru()
         else:
             self.model, self.tokenizer = None, None
-        print("Tild pipeline ready!")
+        print("Beru pipeline ready!")
 
     def start_session(self, clear_history=True, language='en', client_session_id=None):
         bind_id = (client_session_id or '').strip() or None
@@ -54,7 +54,7 @@ class TildPipeline:
         """
         One full chat turn: store message, route, format, learn, store reply.
 
-        client_session_id: per-browser identity (X-Tild-Session-Id). Isolates Omar login
+        client_session_id: per-browser identity (X-Beru-Session-Id). Isolates Omar login
         from other devices; falls back to collector_session_id when omitted.
         """
         message = (message or '').strip()
@@ -119,9 +119,9 @@ class TildPipeline:
 
         if learn:
             if learn_from_exchange(message, response, source, rag=self.rag):
-                print(f"[Tild learned from {source}]")
+                print(f"[Beru learned from {source}]")
 
-        self.memory.add_to_conversation('tild', response)
+        self.memory.add_to_conversation('beru', response)
 
         if collector_session_id:
             from src.conversation_collector import collect_turn
@@ -129,7 +129,7 @@ class TildPipeline:
             collect_turn(
                 session_id=collector_session_id,
                 user_message=message,
-                tild_response=response,
+                beru_response=response,
                 memory=self.memory,
                 source=source,
                 new_chat=new_chat,

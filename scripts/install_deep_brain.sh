@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install Ollama (Tild's deep brain) and pull the default model.
+# Install Ollama (Beru's deep brain) and pull the default model.
 # macOS: uses Homebrew. Linux/Windows: install from https://ollama.com first, then run:
 #   ollama pull llama3.2:3b
 
 set -euo pipefail
 
-MODEL="${TILD_OLLAMA_MODEL:-llama3.2:3b}"
+MODEL="${BERU_OLLAMA_MODEL:-llama3.2:3b}"
 
 if ! command -v ollama >/dev/null 2>&1; then
   if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then

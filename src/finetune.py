@@ -4,14 +4,14 @@ from transformers import Trainer, TrainingArguments
 import os
 
 def finetune():
-    print("Upgrading Tild's brain...")
+    print("Upgrading Beru's brain...")
     
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
     model = GPT2LMHeadModel.from_pretrained("gpt2")
     
-    print(f"Tild has {sum(p.numel() for p in model.parameters())/1e6:.0f}M parameters now!")
-    print("Preparing Tild's data...")
+    print(f"Beru has {sum(p.numel() for p in model.parameters())/1e6:.0f}M parameters now!")
+    print("Preparing Beru's data...")
     
     with open('data/data.txt', 'r', encoding='utf-8') as f:
         text = f.read()
@@ -30,10 +30,10 @@ def finetune():
         mlm=False
     )
     
-    print(f"Tild found {len(dataset)} training samples!")
+    print(f"Beru found {len(dataset)} training samples!")
     
     training_args = TrainingArguments(
-        output_dir='models/tild_v2',
+        output_dir='models/beru_v2',
         overwrite_output_dir=True,
         num_train_epochs=20,
         per_device_train_batch_size=4,
@@ -53,14 +53,14 @@ def finetune():
         train_dataset=dataset,
     )
     
-    print("Tild is learning...")
+    print("Beru is learning...")
     trainer.train()
     
-    model.save_pretrained('models/tild_v2')
-    tokenizer.save_pretrained('models/tild_v2')
+    model.save_pretrained('models/beru_v2')
+    tokenizer.save_pretrained('models/beru_v2')
     os.remove('data/temp_train.txt')
     
-    print("Tild's brain upgraded and saved!")
+    print("Beru's brain upgraded and saved!")
 
 if __name__ == '__main__':
     finetune()

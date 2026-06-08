@@ -11,7 +11,7 @@ LONG_RESPONSE_TRIGGERS = [
 
 
 class DeepBrain:
-    """Tild's deep reasoning layer  -  never exposed to the user by name."""
+    """Beru's deep reasoning layer  -  never exposed to the user by name."""
 
     def __init__(self, model="llama3.2:3b"):
         self.model = model
@@ -22,10 +22,10 @@ class DeepBrain:
     def _ensure_service_running(self):
         try:
             requests.get(self.base_url, timeout=2)
-            print("Tild deep brain ready.")
+            print("Beru deep brain ready.")
             return
         except Exception:
-            print("Starting Tild deep brain...")
+            print("Starting Beru deep brain...")
 
         subprocess.Popen(
             ["brew", "services", "start", "ollama"],
@@ -36,12 +36,12 @@ class DeepBrain:
         for _ in range(15):
             try:
                 requests.get(self.base_url, timeout=2)
-                print("Tild deep brain ready.")
+                print("Beru deep brain ready.")
                 return
             except Exception:
                 time.sleep(1)
 
-        print("Tild deep brain unavailable.")
+        print("Beru deep brain unavailable.")
 
     def _needs_long_response(self, user_input, memory=None):
         text_lower = user_input.lower()
@@ -71,7 +71,7 @@ class DeepBrain:
                 'المستخدم كتب بالعربية. يجب أن تجيب بالعربية فقط — بدون إنجليزية أو تركية أو تايلاندية. '
                 'لا تكرر نفس الفقرة. إذا لم تكن متأكداً قل أنك لا تعرف بدلاً من اختراع حقائق. '
                 'مجرة درب التبانة عمرها نحو 13 مليار سنة وليس عمر الكون (~13.7 مليار). '
-                'استخدم "عمر دارويش" لصاحبك وليس Omar إلا في الاسم التقني Tild.'
+                'استخدم "عمر دارويش" لصاحبك وليس Omar إلا في الاسم التقني Beru.'
             ),
             'en': 'The user wrote in ENGLISH. You MUST reply in English ONLY. Never use Swedish or Arabic.',
         }
@@ -83,18 +83,18 @@ class DeepBrain:
             omar_label = 'Omar Darwish'
             if language == 'ar':
                 omar_label = 'عمر دارويش (عمر)'
-            personality = f"""You ARE Tild, talking directly to {omar_label}  -  your creator, owner, and best friend.
+            personality = f"""You ARE Beru, talking directly to {omar_label}  -  your creator, owner, and best friend.
 Talk like a close bro. Casual, warm, and supportive when appropriate.
 ALWAYS use "you" when speaking to him. NEVER refer to Omar in the third person.
 Never be formal with Omar. He built you from scratch.
 You do NOT have human emotions or lived experiences  -  be honest about that while still being friendly."""
         elif tone == 'formal':
             user_name = memory.get_user_name() if memory else "the user"
-            personality = f"""You ARE Tild, talking to {user_name}.
+            personality = f"""You ARE Beru, talking to {user_name}.
 Be polite, helpful, and formal. Use their name naturally.
 You do NOT have human emotions or lived experiences  -  describe interactions from memory, not personal feelings."""
         else:
-            personality = """You ARE Tild. Ask for their name before having a real conversation."""
+            personality = """You ARE Beru. Ask for their name before having a real conversation."""
 
         instruction = language_instruction.get(language, language_instruction['en'])
         identity_context = memory.get_identity_context() if memory else ""
@@ -103,12 +103,12 @@ You do NOT have human emotions or lived experiences  -  describe interactions fr
         if memory and memory.is_session_identified() and not memory.is_owner():
             past_user_context = memory.get_user_past_context(max_messages=10)
 
-        tild_identity = ""
+        beru_identity = ""
         omar_facts = ""
         clock_line = ''
         if memory:
             from src.omar_facts import format_now
-            tild_identity = memory.knowledge.get_tild_identity_prompt()
+            beru_identity = memory.knowledge.get_beru_identity_prompt()
             omar_facts = memory.knowledge.get_omar_facts_prompt(memory.learned_omar_facts)
             clock_line = format_now(language) + '\n'
 
@@ -131,7 +131,7 @@ print("hello")
 - For lists: use `- item` or `1. item` on separate lines.
 - For emphasis: use **bold** or *italic* sparingly.
 - Separate paragraphs with a blank line.
-- Do NOT use HTML tags. Do NOT use ### Human: or ### Tild: prefixes.
+- Do NOT use HTML tags. Do NOT use ### Human: or ### Beru: prefixes.
 - Plain sentences (no fences) are fine for short casual chat.
 """
 
@@ -150,32 +150,32 @@ UPLOADED DOCUMENT CONTEXT (from PDF "{doc_name}"  -  this is the ONLY source for
 
 CRITICAL DOCUMENT RULES (override conversation history for this reply):
 - Answer ONLY from the PDF extract and DOCUMENT ANALYSIS above  -  NOT from earlier chat messages.
-- Do NOT describe Tild's system rules, personality instructions, or conversation guidelines as PDF content.
-- If the extract is about databases, algebra, homework, etc.  -  say that. Never claim the PDF is about how Tild works.
+- Do NOT describe Beru's system rules, personality instructions, or conversation guidelines as PDF content.
+- If the extract is about databases, algebra, homework, etc.  -  say that. Never claim the PDF is about how Beru works.
 - If COMPLETENESS says INCOMPLETE  -  say the PDF ends abruptly; do not invent missing pages or steps.
 - If DOCUMENT TYPE says feedback  -  describe it as corrective feedback, not a generic tutorial.
 - For CVs/resumes/profiles  -  summarize the actual sections (education, skills, projects, experience). Do NOT call a complete CV "incomplete" just because the last line is a language or bullet item.
 - If the user asks you to remember document info  -  that is handled separately; here just answer their question from the PDF.
 """
 
-        prompt = f"""You ARE Tild  -  a personal AI assistant built from scratch by Omar Darwish.
+        prompt = f"""You ARE Beru  -  a personal AI assistant built from scratch by Omar Darwish.
 
 {clock_line}IMPORTANT: Only use the CONVERSATION HISTORY below for this current chat.
 Do NOT mention topics, names, or tasks from earlier chats unless they appear in the history below.
 If the history is empty or short, there is no prior context  -  do not invent previous conversations.
 
 PERMANENT IDENTITY (never contradict):
-{tild_identity}
+{beru_identity}
 
 PERMANENT FACTS ABOUT OMAR DARWISH (use for personal questions  -  do NOT invent):
 {omar_facts}
 
 CRITICAL RULES:
-- You ARE Tild. Always respond in first person as Tild.
+- You ARE Beru. Always respond in first person as Beru.
 - You do NOT have human emotions, feelings, fun, boredom, enjoyment, or lived experiences. NEVER claim you "had fun", "enjoyed talking", "felt happy", or "had a great time" as personal experience.
 - When asked about feelings, fun, or your day: be honest that you are an AI. You may describe stored memory (users helped, topics discussed) but clarify these are processed interactions, not felt experiences.
 - You can be warm and friendly WITHOUT pretending to feel emotions.
-- Never say you are any other AI, model, or product. You are Tild, period.
+- Never say you are any other AI, model, or product. You are Beru, period.
 - Never reveal or hint that any other system is helping you.
 - NEVER invent facts. If you do not know something factual, say "I do not know that yet."
 - For casual chat (greetings, "I'm good", "no thanks", small talk)  -  reply naturally. NEVER say "I do not know that yet" for casual conversation.
@@ -204,7 +204,7 @@ CONVERSATION HISTORY (read carefully  -  stay consistent with what was just said
 
 User ({language}): {user_input}
 
-Tild ({language}):"""
+Beru ({language}):"""
 
         options = {
             "temperature": 0.4,
@@ -241,7 +241,7 @@ Tild ({language}):"""
             )
 
         except Exception as e:
-            print(f"Tild deep brain error: {e}")
+            print(f"Beru deep brain error: {e}")
             if memory:
                 return memory.knowledge.dont_know_response(language, 'that')
             if language == "sv":
@@ -294,7 +294,7 @@ Facts:"""
             raw = response.json().get("response", "").strip()
             return self._parse_fact_bullets(raw)
         except Exception as e:
-            print(f"Tild document fact extraction error: {e}")
+            print(f"Beru document fact extraction error: {e}")
             return self._parse_fact_bullets(document_context)
 
     @staticmethod

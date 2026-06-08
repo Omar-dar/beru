@@ -2,10 +2,10 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import re
 
-from src.document_index import TildDocumentIndex
+from src.document_index import BeruDocumentIndex
 
 
-class TildRAG:
+class BeruRAG:
 
     def __init__(self, data_paths=None):
 
@@ -18,7 +18,7 @@ class TildRAG:
 
             ]
 
-        print("Loading Tild's memory...")
+        print("Loading Beru's memory...")
 
         self.model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
         
@@ -39,10 +39,10 @@ class TildRAG:
 
         self._encode_questions()
 
-        self.document_index = TildDocumentIndex(self.model)
+        self.document_index = BeruDocumentIndex(self.model)
 
         print(
-            f"Tild remembers "
+            f"Beru remembers "
             f"{len(self.questions)} things!"
         )
 
@@ -59,7 +59,7 @@ class TildRAG:
 
         pairs = re.findall(
 
-            r'### Human: (.+?)\n### Tild: (.+?)(?=\n### Human:|\Z)',
+            r'### Human: (.+?)\n### Beru: (.+?)(?=\n### Human:|\Z)',
 
             content,
 

@@ -1,4 +1,4 @@
-"""Persist conversation exchanges so Tild's RAG learns from Ollama and chat."""
+"""Persist conversation exchanges so Beru's RAG learns from Ollama and chat."""
 
 import os
 import re
@@ -26,7 +26,7 @@ def _normalize(text):
 
 
 def is_learnable_exchange(question, answer, source):
-    """Return True when this Q&A should be appended to Tild training data."""
+    """Return True when this Q&A should be appended to Beru training data."""
     if source in SKIP_SOURCES:
         return False
 
@@ -59,7 +59,7 @@ def _pair_exists(path, question):
 
 
 def append_conversation_pair(question, answer, path=CONVERSATION_DATA_PATH):
-    """Append a Human/Tild pair to conversation_data.txt."""
+    """Append a Human/Beru pair to conversation_data.txt."""
     question = question.strip()
     answer = answer.strip()
     if not question or not answer:
@@ -68,7 +68,7 @@ def append_conversation_pair(question, answer, path=CONVERSATION_DATA_PATH):
     if _pair_exists(path, question):
         return False
 
-    block = f"### Human: {question}\n### Tild: {answer}\n\n"
+    block = f"### Human: {question}\n### Beru: {answer}\n\n"
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
     with open(path, 'a', encoding='utf-8') as f:
         f.write(block)
@@ -78,7 +78,7 @@ def append_conversation_pair(question, answer, path=CONVERSATION_DATA_PATH):
 def learn_from_exchange(question, answer, source, rag=None):
     """
     Save exchange to disk and refresh in-memory RAG.
-    Ollama answers become retrievable by Tild's own RAG on the next question.
+    Ollama answers become retrievable by Beru's own RAG on the next question.
     """
     if not is_learnable_exchange(question, answer, source):
         return False

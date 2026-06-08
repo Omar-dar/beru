@@ -1,9 +1,9 @@
 import torch
 import tiktoken
-from src.config import TildConfig
-from src.model import Tild
+from src.config import BeruConfig
+from src.model import Beru
 
-cfg = TildConfig()
+cfg = BeruConfig()
 
 
 def load_data():
@@ -24,7 +24,7 @@ def load_data():
 
     vocab_size = enc.n_vocab
 
-    print(f"Tild found {len(tokens)} tokens in training data")
+    print(f"Beru found {len(tokens)} tokens in training data")
     print(f"Vocabulary size: {vocab_size}")
 
     data = torch.tensor(tokens, dtype=torch.long)
@@ -63,7 +63,7 @@ def train():
     train_data = data[:n]
     val_data = data[n:]
 
-    model = Tild(vocab_size).to(cfg.device)
+    model = Beru(vocab_size).to(cfg.device)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -75,10 +75,10 @@ def train():
         for p in model.parameters()
     ) / 1e6
 
-    print(f"Tild has {params:.2f}M parameters")
+    print(f"Beru has {params:.2f}M parameters")
     print(f"Epochs: {cfg.epochs}")
     print(f"Batch size: {cfg.batch_size}")
-    print("Tild is starting to learn...\n")
+    print("Beru is starting to learn...\n")
 
     model.train()
 
@@ -117,4 +117,4 @@ def train():
         cfg.model_path
     )
 
-    print("Tild's brain saved!")
+    print("Beru's brain saved!")

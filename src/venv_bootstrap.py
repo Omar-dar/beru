@@ -18,7 +18,7 @@ def _running_in_project_venv(root):
 
 def ensure_project_venv():
     """
-    Homebrew `python3 tild_api.py` uses the same binary as `.venv/bin/python3`
+    Homebrew `python3 beru_api.py` uses the same binary as `.venv/bin/python3`
     but WITHOUT venv site-packages — pymupdf/torch won't load.
 
     Re-exec via `.venv/bin/python3` so the virtualenv is active.
@@ -31,5 +31,5 @@ def ensure_project_venv():
     if _running_in_project_venv(root):
         return
 
-    print(f"Using Tild venv Python: {venv_python}")
+    print(f"Using Beru venv Python: {venv_python}")
     os.execv(venv_python, [venv_python] + sys.argv)

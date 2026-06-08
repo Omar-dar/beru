@@ -50,7 +50,7 @@ PRE_UPLOAD_DOCUMENT_TRIGGERS = (
 )
 
 
-class TildDocumentIndex:
+class BeruDocumentIndex:
 
     def __init__(self, embed_model, base_dir=DOCUMENTS_DIR):
         self.model = embed_model
@@ -83,7 +83,7 @@ class TildDocumentIndex:
         else:
             self.embeddings = np.zeros((0, 384), dtype=np.float32)
 
-        print(f"Tild document index: {len(self.documents)} PDF(s), {len(self.chunks)} chunk(s)")
+        print(f"Beru document index: {len(self.documents)} PDF(s), {len(self.chunks)} chunk(s)")
 
     def _save_manifest(self):
         os.makedirs(self.base_dir, exist_ok=True)
@@ -239,9 +239,9 @@ class TildDocumentIndex:
     def is_document_question(text):
         import re
         text_lower = text.lower()
-        if TildDocumentIndex.is_pre_upload_document_intent(text):
+        if BeruDocumentIndex.is_pre_upload_document_intent(text):
             return False
-        if TildDocumentIndex.is_remember_from_document_intent(text):
+        if BeruDocumentIndex.is_remember_from_document_intent(text):
             return True
         if any(re.search(p, text_lower) for p in RE_READ_DOCUMENT_PATTERNS):
             return True

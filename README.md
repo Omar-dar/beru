@@ -1,8 +1,8 @@
-# Tild - Personal AI 
+# Beru - Personal AI 
 
-Tild is a personal AI language model built completely from scratch by Omar Darwish using Python and PyTorch. Tild is a decoder-only transformer inspired by the GPT architecture.
+Beru is a personal AI language model built completely from scratch by Omar Darwish using Python and PyTorch. Beru is a decoder-only transformer inspired by the GPT architecture.
 
-## What Tild Can Do
+## What Beru Can Do
 
 ### Conversation
 - Chat in English, Swedish and Arabic
@@ -32,17 +32,17 @@ Tild is a personal AI language model built completely from scratch by Omar Darwi
 ## Project Structure
 
 ```
-Tild/
+Beru/
 ├── chat/
 │   ├── chat.py          # Text chat interface
 │   └── voice_chat.py    # Voice chat interface
 ├── data/
 │   └── data.txt         # Training data (Q&A pairs)
 ├── models/
-│   └── tild_v2/         # Fine-tuned model (not in GitHub)
+│   └── beru_v2/         # Fine-tuned model (not in GitHub)
 ├── src/
 │   ├── config.py        # Model configuration
-│   ├── model.py         # Tild transformer architecture
+│   ├── model.py         # Beru transformer architecture
 │   ├── train.py         # Training from scratch
 │   ├── finetune.py      # Fine-tuning with pre-trained weights
 │   ├── rag.py           # Retrieval Augmented Generation
@@ -52,12 +52,12 @@ Tild/
 ├── .gitignore
 ├── requirements.txt
 ├── setup.py
-└── tild.py              # Main entry point
+└── beru.py              # Main entry point
 ```
 
 ## Architecture
 
-Tild is a decoder-only transformer with:
+Beru is a decoder-only transformer with:
 
 | Setting | Value |
 |---|---|
@@ -70,14 +70,14 @@ Tild is a decoder-only transformer with:
 
 ## Response Pipeline
 
-When you ask Tild something this is what happens:
+When you ask Beru something this is what happens:
 
 ```
 Your question
       |
-1. Correction check - did you correct Tild?
+1. Correction check - did you correct Beru?
       |
-2. Corrections memory - has Tild learned this before?
+2. Corrections memory - has Beru learned this before?
       |
 3. Internet search - is this a factual question?
       |
@@ -87,7 +87,7 @@ Your question
       |
 6. Fallback - if nothing works give intelligent fallback
       |
-Tild's response
+Beru's response
 ```
 
 ## How To Run
@@ -95,13 +95,13 @@ Tild's response
 ### Install everything (new Mac or fresh clone)
 
 ```bash
-git clone git@github.com:Omar-dar/tild.git
-cd tild
+git clone git@github.com:Omar-dar/beru.git
+cd beru
 chmod +x scripts/*.sh
 ./scripts/setup_machine.sh
 ```
 
-That creates a `.venv`, installs Python packages from `requirements.txt`, installs **Ollama**, and pulls **`llama3.2:3b`** (Tild's deep brain).
+That creates a `.venv`, installs Python packages from `requirements.txt`, installs **Ollama**, and pulls **`llama3.2:3b`** (Beru's deep brain).
 
 **Manual Ollama only (macOS):**
 
@@ -122,31 +122,31 @@ pip install -r requirements.txt
 ./scripts/install_deep_brain.sh
 ```
 
-### Train Tild from scratch
+### Train Beru from scratch
 ```bash
-python3 tild.py train
+python3 beru.py train
 ```
 
-### Fine-tune Tild
+### Fine-tune Beru
 ```bash
-python3 tild.py finetune
+python3 beru.py finetune
 ```
 
-### Chat with Tild (text)
+### Chat with Beru (text)
 ```bash
-python3 tild.py chat
+python3 beru.py chat
 ```
 
-### Talk to Tild (voice)
+### Talk to Beru (voice)
 ```bash
-python3 tild.py voice
+python3 beru.py voice
 ```
 
 ## Setup On New Machine
 
 Use `./scripts/setup_machine.sh` (recommended). It installs Python deps and Ollama.
 
-`python3 setup.py` only installs pip packages and runs **train + finetune** (slow, optional). Chat and the API use Ollama for reasoning; local `models/tild_v2` is optional and not in git.
+`python3 setup.py` only installs pip packages and runs **train + finetune** (slow, optional). Chat and the API use Ollama for reasoning; local `models/beru_v2` is optional and not in git.
 
 ## Environment Variables
 
@@ -163,10 +163,10 @@ All training data is in `data/data.txt` using this format:
 
 ```
 ### Human: your question here
-### Tild: Tild's response here
+### Beru: Beru's response here
 ```
 
-The more varied and comprehensive the data the smarter Tild becomes.
+The more varied and comprehensive the data the smarter Beru becomes.
 
 ## Technologies Used
 
@@ -175,7 +175,7 @@ The more varied and comprehensive the data the smarter Tild becomes.
 | Python | Main programming language |
 | PyTorch | Neural network framework |
 | Ollama (`llama3.2:3b`) | Deep brain — creative chat and reasoning |
-| Transformers (HuggingFace) | Optional fine-tuned GPT-2 (`models/tild_v2`) |
+| Transformers (HuggingFace) | Optional fine-tuned GPT-2 (`models/beru_v2`) |
 | tiktoken | GPT-2 tokenizer |
 | sentence-transformers | RAG similarity search |
 | Whisper (OpenAI) | Speech to text |
@@ -214,7 +214,7 @@ The more varied and comprehensive the data the smarter Tild becomes.
 
 ## About
 
-Tild was built completely from scratch by Omar Darwish as a personal AI project. The name Tild is unique and given by Omar. Tild's architecture and training pipeline were developed independently. The project also experiments with fine-tuning and external NLP tooling where relevant. 
+Beru was built completely from scratch by Omar Darwish as a personal AI project. The name Beru is unique and given by Omar. Beru's architecture and training pipeline were developed independently. The project also experiments with fine-tuning and external NLP tooling where relevant. 
 The architecture, training code and personality are all original.
 
-GitHub: github.com/Omar-dar/tild
+GitHub: github.com/Omar-dar/beru

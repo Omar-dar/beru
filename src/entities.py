@@ -1,6 +1,6 @@
 import re
 
-class TildEntityRecognizer:
+class BeruEntityRecognizer:
     def __init__(self):
         # Common Swedish and English first names
         self.common_names = {

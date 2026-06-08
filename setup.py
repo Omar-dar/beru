@@ -2,7 +2,7 @@
 import os
 import subprocess
 
-print("Setting up Tild...")
+print("Setting up Beru...")
 
 # Install requirements
 subprocess.run(['pip3', 'install', '-r', 'requirements.txt'])
@@ -11,12 +11,12 @@ subprocess.run(['pip3', 'install', '-r', 'requirements.txt'])
 os.makedirs('models', exist_ok=True)
 os.makedirs('data', exist_ok=True)
 
-# Train Tild
-print("Training Tild's brain...")
-subprocess.run(['python3', 'tild.py', 'train'])
+# Train Beru
+print("Training Beru's brain...")
+subprocess.run(['python3', 'beru.py', 'train'])
 
 # Finetune
-print("Upgrading Tild's brain...")
-subprocess.run(['python3', 'tild.py', 'finetune'])
+print("Upgrading Beru's brain...")
+subprocess.run(['python3', 'beru.py', 'finetune'])
 
-print("Tild is ready!")
+print("Beru is ready!")

@@ -5,10 +5,10 @@ import os
 from dotenv import load_dotenv
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-from src.rag import TildRAG
-from src.memory import TildMemory, GREETING_WORDS
-from src.search import TildSearch
-from src.entities import TildEntityRecognizer
+from src.rag import BeruRAG
+from src.memory import BeruMemory, GREETING_WORDS
+from src.search import BeruSearch
+from src.entities import BeruEntityRecognizer
 from src.deep_brain import DeepBrain
 from src.language import (
     detect_arabic_name,
@@ -46,14 +46,14 @@ FALLBACKS_SV = [
 ]
 
 PROTECTED_USERS = {
-    "Omar": os.getenv("TILD_OMAR_PASSWORD", "tild123")
+    "Omar": os.getenv("BERU_OMAR_PASSWORD", "beru123")
 }
 
 
-def load_tild():
-    print("Loading Tild's brain...")
-    tokenizer = GPT2Tokenizer.from_pretrained("models/tild_v2")
-    model = GPT2LMHeadModel.from_pretrained("models/tild_v2")
+def load_beru():
+    print("Loading Beru's brain...")
+    tokenizer = GPT2Tokenizer.from_pretrained("models/beru_v2")
+    model = GPT2LMHeadModel.from_pretrained("models/beru_v2")
     model.eval()
     return model, tokenizer
 
@@ -71,12 +71,12 @@ def is_good_response(response):
 
 
 def detect_name(user_input_lower):
-    from src.memory import GREETING_WORDS, OWNER_NAME, TildMemory
+    from src.memory import GREETING_WORDS, OWNER_NAME, BeruMemory
 
     if looks_like_question(user_input_lower):
         return None
 
-    if TildMemory.looks_like_yes_or_no(user_input_lower):
+    if BeruMemory.looks_like_yes_or_no(user_input_lower):
         return None
 
     arabic_name = detect_arabic_name(user_input_lower)
@@ -215,8 +215,8 @@ def looks_like_question(text_lower):
     if is_arabic_question(text):
         return True
     try:
-        from src.document_index import TildDocumentIndex
-        if TildDocumentIndex.is_document_question(text):
+        from src.document_index import BeruDocumentIndex
+        if BeruDocumentIndex.is_document_question(text):
             return True
     except Exception:
         pass
@@ -419,7 +419,7 @@ def get_response(
         pending_language = memory.session.get("pending_language", "en")
 
         stored = PROTECTED_USERS.get(pending_name)
-        if stored and TildMemory.passwords_match(user_input, stored):
+        if stored and BeruMemory.passwords_match(user_input, stored):
             memory.clear_pending_name()
             if pending_name == "Omar":
                 memory.mark_as_owner(pending_language)
@@ -534,7 +534,7 @@ def get_response(
 
         return memory.ask_to_identify(language), 'gate'
 
-    # PDF document questions — before generic handlers (avoid brain hallucinating Tild rules)
+    # PDF document questions — before generic handlers (avoid brain hallucinating Beru rules)
     index = getattr(rag, 'document_index', None)
     if index and index.is_pre_upload_document_intent(user_input):
         return memory.answer_pre_upload_document_intent(language), 'memory'
@@ -631,13 +631,13 @@ def get_response(
     if memory.is_casual_conversation_reply(user_input):
         return memory.answer_casual_reply(language), 'memory'
 
-    if memory.is_tild_activity_question(user_input):
-        return memory.answer_tild_activity_question(user_input, language), 'memory'
+    if memory.is_beru_activity_question(user_input):
+        return memory.answer_beru_activity_question(user_input, language), 'memory'
 
-    if memory.is_tild_experience_question(user_input):
-        return memory.answer_tild_experience_question(language), 'memory'
+    if memory.is_beru_experience_question(user_input):
+        return memory.answer_beru_experience_question(language), 'memory'
 
-    # Permanent knowledge — Tild identity and Omar facts
+    # Permanent knowledge — Beru identity and Omar facts
     knowledge_answer = memory.answer_from_knowledge(user_input, language)
     if knowledge_answer:
         print("[Knowledge memory used]")
@@ -663,7 +663,7 @@ def get_response(
 
     # Correction check
     if memory.is_correction(user_input):
-        last_exchange = [m for m in memory.conversation_history if m["role"] == "tild"]
+        last_exchange = [m for m in memory.conversation_history if m["role"] == "beru"]
         last_question = [m for m in memory.conversation_history if m["role"] == "human"]
 
         if last_exchange and last_question:
@@ -727,7 +727,7 @@ def get_response(
         route = ROUTE_BRAIN
 
     if route == ROUTE_BRAIN and brain:
-        print("[Tild thinking...]")
+        print("[Beru thinking...]")
         document_context = ""
         index = getattr(rag, 'document_index', None)
         if index and memory:
@@ -752,12 +752,12 @@ def get_response(
 
 
 def chat():
-    from src.pipeline import TildPipeline
+    from src.pipeline import BeruPipeline
 
-    pipeline = TildPipeline()
+    pipeline = BeruPipeline()
 
     greeting = pipeline.start_session(clear_history=False)
-    print(f"Tild: {greeting}\n")
+    print(f"Beru: {greeting}\n")
     print("Type your message (or 'quit' to exit)\n")
 
     while True:
@@ -768,15 +768,15 @@ def chat():
 
         if user_input.lower() == "quit":
             if pipeline.memory.is_owner():
-                print("Tild: Vi ses bro!")
+                print("Beru: Vi ses bro!")
             elif pipeline.memory.is_session_identified():
-                print("Tild: Goodbye! It was great talking with you.")
+                print("Beru: Goodbye! It was great talking with you.")
             else:
-                print("Tild: Goodbye!")
+                print("Beru: Goodbye!")
             break
 
         result = pipeline.chat_turn(user_input, format_for_ui=False)
-        print(f"Tild: {result['response']}\n")
+        print(f"Beru: {result['response']}\n")
 
 
 if __name__ == "__main__":

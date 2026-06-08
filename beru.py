@@ -7,11 +7,11 @@ ensure_project_venv()
 def main():
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python3 tild.py train   - Train Tild")
-        print("  python3 tild.py finetune - Upgrade Tild's brain")
-        print("  python3 tild.py chat    - Chat with Tild")
-        print("  python3 tild.py voice   - Talk to Tild")
-        print("  python3 tild.py api     - Start Tild API for GUI (port 8000, voice endpoints)")
+        print("  python3 beru.py train   - Train Beru")
+        print("  python3 beru.py finetune - Upgrade Beru's brain")
+        print("  python3 beru.py chat    - Chat with Beru")
+        print("  python3 beru.py voice   - Talk to Beru")
+        print("  python3 beru.py api     - Start Beru API for GUI (port 8000, voice endpoints)")
         return
 
     if sys.argv[1] == 'train':
@@ -31,7 +31,7 @@ def main():
         voice_chat()
 
     elif sys.argv[1] == 'api':
-        from tild_api import app
+        from beru_api import app
         app.run(port=8000, debug=False)
 
 if __name__ == '__main__':

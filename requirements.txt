@@ -1,5 +1,5 @@
 # Python deps (install: pip install -r requirements.txt)
-# System deps (not pip): Ollama for Tild's deep brain — see README or:
+# System deps (not pip): Ollama for Beru's deep brain — see README or:
 #   ./scripts/install_deep_brain.sh
 
 torch
