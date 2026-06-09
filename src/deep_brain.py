@@ -23,19 +23,23 @@ class DeepBrain:
         self._ensure_service_running()
 
     def _ollama_options(self, *, long_response=False):
-        short = int(os.getenv('BERU_OLLAMA_NUM_PREDICT_SHORT', '180'))
-        long_limit = int(os.getenv('BERU_OLLAMA_NUM_PREDICT_LONG', '1024'))
+        from src.performance import ollama_num_predict_short
+
+        short = ollama_num_predict_short()
+        long_limit = int(os.getenv('BERU_OLLAMA_NUM_PREDICT_LONG', '768'))
         return {
-            'temperature': 0.4,
-            'top_p': 0.9,
+            'temperature': 0.35,
+            'top_p': 0.85,
             'stop': ['\nUser:', '\nHuman:', '###'],
             'num_predict': long_limit if long_response else short,
         }
 
     def _context_message_limit(self, long_response=False):
+        from src.performance import ollama_context_messages
+
         if long_response:
             return int(os.getenv('BERU_OLLAMA_CONTEXT_MESSAGES_LONG', '30'))
-        return int(os.getenv('BERU_OLLAMA_CONTEXT_MESSAGES', '12'))
+        return ollama_context_messages()
 
     def preload_model(self):
         """Keep the Ollama model warm so the first chat reply is faster."""

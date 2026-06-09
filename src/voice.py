@@ -16,13 +16,13 @@ SUPPORTED_AUDIO_EXTENSIONS = {
 
 # Microsoft Edge neural voices — free via edge-tts, no API key
 EDGE_VOICES = {
-    'en': 'en-US-JennyNeural',
-    'sv': 'sv-SE-SofieNeural',
-    'ar': 'ar-SA-ZariyahNeural',
+    'en': 'en-US-GuyNeural',
+    'sv': 'sv-SE-MattiasNeural',
+    'ar': 'ar-SA-HamedNeural',
 }
 
 MACOS_VOICES = {
-    'en': 'Samantha',
+    'en': 'Alex',
     'sv': 'Alva',
     'ar': 'Majed',
 }
@@ -53,7 +53,7 @@ def _tts_backend():
 
 
 def _whisper_model_name():
-    return os.getenv('BERU_WHISPER_MODEL', 'medium')
+    return os.getenv('BERU_WHISPER_MODEL', 'small')
 
 
 def is_tts_available():
@@ -74,6 +74,7 @@ def capabilities():
         'whisper_model': _whisper_model_name(),
         'whisper_compute_type': os.getenv('BERU_WHISPER_COMPUTE_TYPE', 'int8'),
         'tts_engine': _tts_backend(),
+        'tts': is_tts_available(),
         'tts_server': is_tts_available(),
         'tts_voices': EDGE_VOICES if _tts_backend() == 'edge' else MACOS_VOICES,
         'tts_note': (
@@ -130,12 +131,14 @@ def _get_stt_model():
 
 
 def _transcribe_faster_whisper(model, path, *, language_hint=None):
+    from src.performance import whisper_beam_size, whisper_vad_filter
+
     lang = language_hint if language_hint in ('en', 'sv', 'ar') else None
     prompt = STT_INITIAL_PROMPTS.get(lang or '', '') or None
 
     kwargs = {
-        'beam_size': 5,
-        'vad_filter': True,
+        'beam_size': whisper_beam_size(),
+        'vad_filter': whisper_vad_filter(),
         'condition_on_previous_text': False,
     }
     if lang:
