@@ -32,10 +32,10 @@
       "language": "en",
       "is_owner": true,
       "permanently_verified": true,
-      "last_seen": "2026-06-08T21:01:28.704930",
+      "last_seen": "2026-06-09T17:32:33.213203",
       "topics": [],
       "sessions": [],
-      "visit_count": 51
+      "visit_count": 3
     },
     "usr_56684aa7": {
       "full_name": "Sara Andersson",
@@ -432,16 +432,5 @@
       "event_date": "2026-06-08"
     }
   ],
-  "conversation_history": [
-    {
-      "role": "human",
-      "text": "can you code?",
-      "time": "2026-06-08T21:01:28.705688"
-    },
-    {
-      "role": "beru",
-      "text": "```python\ndef greet(language):\n    return \"Hello!\"\n```",
-      "time": "2026-06-08T21:01:28.706619"
-    }
-  ]
+  "conversation_history": []
 }
