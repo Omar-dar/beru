@@ -23,40 +23,125 @@ class BeruSearch:
 
         return 'ar' if is_arabic_text(query) else 'en'
 
-    def get_weather(self, query):
+    @staticmethod
+    def _extract_city_from_weather_query(query, full_text=''):
+        words = (query or '').lower().replace('?', '').split()
+        skip = {
+            'what', 'is', 'the', 'weather', 'in', 'today', 'talking', 'about',
+            'temperature', 'forecast', 'like', 'how', 'whats', "what's",
+            'current', 'now', 'degrees', 'can', 'you', 'search', 'browser',
+            'google', 'for', 'on', 'open', 'and', 'any', 'of', 'me', 'tell',
+            'vad', 'är', 'vädret', 'nu', 'idag', 'temperatur', 'grader',
+        }
+        city_words = [w for w in words if w not in skip and len(w) > 2]
+        city = ' '.join(city_words).strip()
+        blob = f'{(full_text or "").lower()} {(query or "").lower()}'
+        for name in ('stockholm', 'gothenburg', 'göteborg', 'malmo', 'malmö', 'uppsala', 'london', 'paris'):
+            if name in blob:
+                return name.replace('ö', 'o')
+        return city or 'Stockholm'
+
+    def get_weather(self, query, full_text=''):
+        city = self._extract_city_from_weather_query(query, full_text)
+        is_swedish = any(c in f'{query}{full_text}' for c in 'åäöÅÄÖ')
+
+        if OPENWEATHER_KEY:
+            try:
+                ow = self._weather_openweather(city, is_swedish)
+                if ow:
+                    return ow
+            except Exception as e:
+                print(f'OpenWeather error: {e}')
+
         try:
-            words = query.lower().replace('?', '').split()
-            skip = ['what', 'is', 'the', 'weather', 'in', 'today',
-                    'temperature', 'forecast', 'like', 'how', 'whats',
-                    'current', 'now', 'degrees', 'vad', 'är', 'vädret',
-                    'nu', 'idag', 'temperatur', 'grader']
-            city_words = [w for w in words if w not in skip]
-            city = ' '.join(city_words).strip()
-
-            if not city:
-                city = "Gothenburg"
-
-            url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_KEY}&units=metric"
-            response = requests.get(url, timeout=5)
-            data = response.json()
-
-            if data.get('cod') == 200:
-                temp = round(data['main']['temp'])
-                feels = round(data['main']['feels_like'])
-                desc = data['weather'][0]['description']
-                humidity = data['main']['humidity']
-                city_name = data['name']
-                country = data['sys']['country']
-                is_swedish = any(c in query for c in 'åäöÅÄÖ')
-                if is_swedish:
-                    return f"Det är just nu {temp}°C i {city_name}, {country}. Känns som {feels}°C med {desc}. Luftfuktighet {humidity}%."
-                else:
-                    return f"It is currently {temp}°C in {city_name}, {country}. Feels like {feels}°C with {desc}. Humidity is {humidity}%."
-            else:
-                return None
+            om = self._weather_open_meteo(city, is_swedish)
+            if om:
+                return om
         except Exception as e:
-            print(f"Weather error: {e}")
+            print(f'Open-Meteo error: {e}')
+
+        try:
+            return self._weather_wttr(city, is_swedish)
+        except Exception as e:
+            print(f'wttr.in error: {e}')
             return None
+
+    def _weather_openweather(self, city, is_swedish):
+        url = (
+            f'http://api.openweathermap.org/data/2.5/weather'
+            f'?q={city}&appid={OPENWEATHER_KEY}&units=metric'
+        )
+        data = requests.get(url, timeout=5).json()
+        if data.get('cod') != 200:
+            return None
+        temp = round(data['main']['temp'])
+        feels = round(data['main']['feels_like'])
+        desc = data['weather'][0]['description']
+        humidity = data['main']['humidity']
+        city_name = data['name']
+        country = data['sys']['country']
+        if is_swedish:
+            return (
+                f'Det är just nu {temp}°C i {city_name}, {country}. '
+                f'Känns som {feels}°C med {desc}. Luftfuktighet {humidity}%.'
+            )
+        return (
+            f'It is currently {temp}°C in {city_name}, {country}. '
+            f'Feels like {feels}°C with {desc}. Humidity is {humidity}%.'
+        )
+
+    def _weather_open_meteo(self, city, is_swedish):
+        geo = requests.get(
+            'https://geocoding-api.open-meteo.com/v1/search',
+            params={'name': city, 'count': 1},
+            timeout=5,
+        ).json()
+        results = geo.get('results') or []
+        if not results:
+            return None
+        hit = results[0]
+        lat, lon = hit['latitude'], hit['longitude']
+        name = hit.get('name', city)
+        country = hit.get('country_code', '')
+        wx = requests.get(
+            'https://api.open-meteo.com/v1/forecast',
+            params={'latitude': lat, 'longitude': lon, 'current': 'temperature_2m,weather_code'},
+            timeout=5,
+        ).json()
+        temp = round(wx['current']['temperature_2m'])
+        code = int(wx['current'].get('weather_code', 0))
+        desc = self._wmo_label(code, is_swedish)
+        if is_swedish:
+            return f'Det är just nu {temp}°C i {name}, {country}. {desc}.'
+        return f'It is currently {temp}°C in {name}, {country}. {desc}.'
+
+    @staticmethod
+    def _wmo_label(code, is_swedish):
+        labels_en = {
+            0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+            45: 'Foggy', 48: 'Foggy', 51: 'Light drizzle', 61: 'Rain',
+            71: 'Snow', 80: 'Rain showers', 95: 'Thunderstorm',
+        }
+        labels_sv = {
+            0: 'Klart', 1: 'Mestadels klart', 2: 'Delvis molnigt', 3: 'Mulet',
+            45: 'Dimma', 61: 'Regn', 71: 'Snö', 80: 'Regnskurar', 95: 'Åska',
+        }
+        table = labels_sv if is_swedish else labels_en
+        return table.get(code, 'Mixed conditions' if not is_swedish else 'Blandat väder')
+
+    def _weather_wttr(self, city, is_swedish):
+        import urllib.parse
+
+        line = requests.get(
+            f'https://wttr.in/{urllib.parse.quote(city)}?format=3',
+            timeout=5,
+            headers={'User-Agent': 'Beru/1.0'},
+        ).text.strip()
+        if not line or 'Unknown' in line:
+            return None
+        if is_swedish:
+            return line.replace(':', ' — vädret i')
+        return line.replace(':', ' — weather in')
 
     def search_wikipedia(self, query):
         try:
@@ -112,6 +197,21 @@ class BeruSearch:
             print(f"Wikipedia error: {e}")
             return None
 
+    def search_web(self, query, max_results=3):
+        """DuckDuckGo text snippets — used for voice UI source=search."""
+        try:
+            from duckduckgo_search import DDGS
+
+            with DDGS() as ddgs:
+                hits = list(ddgs.text(query, max_results=max_results))
+            bodies = [h.get('body', '').strip() for h in hits if h.get('body')]
+            if not bodies:
+                return None
+            return ' '.join(bodies)[:500]
+        except Exception as exc:
+            print(f'Web search error: {exc}')
+            return None
+
     def search(self, query, max_results=5):
         query_lower = query.lower()
 
@@ -122,7 +222,18 @@ class BeruSearch:
             if result:
                 return result
 
-        return self.search_wikipedia(query)
+        use_web = os.getenv('BERU_WEB_SEARCH', '1').strip().lower() in ('1', 'true', 'yes')
+        if use_web:
+            web = self.search_web(query)
+            if web:
+                return web
+
+        wiki = self.search_wikipedia(query)
+        if wiki:
+            return wiki
+        if use_web:
+            return self.search_web(query)
+        return None
 
     def format_response(self, result, query):
         if not result:
