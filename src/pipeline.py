@@ -91,6 +91,8 @@ class BeruPipeline:
         tone = self.memory.get_tone()
         self.memory.add_to_conversation('human', message)
 
+        from chat.chat import consume_turn_meta
+
         response, source = get_response(
             self.model,
             self.tokenizer,
@@ -102,6 +104,7 @@ class BeruPipeline:
             language_hint=language_hint,
             brain=self.brain,
         )
+        turn_meta = consume_turn_meta()
         language = self.memory.session.get('language') or detect_language(message)
 
         response = strip_long_dashes(response)
@@ -135,7 +138,9 @@ class BeruPipeline:
                 new_chat=new_chat,
             )
 
-        return {
+        from src.voice_auth import is_enrolled, voice_auth_enabled
+
+        payload = {
             'response': response,
             'language': language,
             'text_direction': text_direction_for_language(language),
@@ -145,7 +150,29 @@ class BeruPipeline:
             'is_owner': self.memory.is_owner(),
             'session_identified': self.memory.is_session_identified(),
             'active_document': self.memory.get_active_document_info(),
+            'awaiting_voice_wake': self.memory.is_awaiting_voice_wake(),
+            'voice_verified': self.memory.is_voice_verified(),
+            'voice_enrolled': is_enrolled() if voice_auth_enabled() else None,
         }
+        if source in ('search', 'web_search'):
+            payload['source'] = 'search'
+            payload.setdefault('activity', 'searching')
+        if turn_meta.get('activity'):
+            payload['activity'] = turn_meta['activity']
+        if turn_meta.get('browser_url') or turn_meta.get('opened_url'):
+            payload['browser_url'] = turn_meta.get('browser_url') or turn_meta.get('opened_url')
+            payload['opened_url'] = payload['browser_url']
+        if turn_meta.get('search_query'):
+            payload['search_query'] = turn_meta['search_query']
+        if turn_meta.get('page_title'):
+            payload['page_title'] = turn_meta['page_title']
+        if turn_meta.get('client_actions'):
+            payload['client_actions'] = turn_meta['client_actions']
+        if turn_meta.get('browser_open'):
+            payload['browser_open'] = True
+        if turn_meta.get('screenshot_path'):
+            payload['screenshot_path'] = turn_meta['screenshot_path']
+        return payload
 
     def ingest_pdf(self, file_path, original_filename, client_session_id=None):
         """Upload + index a PDF; set as active document for this session."""

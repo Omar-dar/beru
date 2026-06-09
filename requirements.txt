@@ -18,6 +18,12 @@ python-dotenv
 flask
 flask-cors
 requests
+duckduckgo-search
+playwright
+mss
 wikipedia
 pymupdf
 pdfplumber
+librosa
+soundfile
+imageio-ffmpeg

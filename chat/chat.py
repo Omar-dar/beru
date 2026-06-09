@@ -2,6 +2,7 @@ import torch
 import random
 import re
 import os
+from contextvars import ContextVar
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 from src.project_env import load_project_dotenv
@@ -32,6 +33,13 @@ from src.router import (
 
 load_project_dotenv()
 
+_turn_meta: ContextVar[dict] = ContextVar('beru_turn_meta', default={})
+
+
+def consume_turn_meta() -> dict:
+    return dict(_turn_meta.get({}))
+
+
 FALLBACKS = [
     "That is an interesting question! I am still learning about that topic.",
     "Hmm I am not sure about that yet. Ask me something else!",
@@ -52,7 +60,12 @@ FALLBACKS_SV = [
 ]
 
 def protected_users():
-    return {"Omar": os.getenv("BERU_OMAR_PASSWORD", "beru123")}
+    from src.voice_auth import voice_auth_enabled
+
+    if voice_auth_enabled():
+        return {}
+    pwd = os.getenv("BERU_OMAR_PASSWORD", "beru123")
+    return {"Omar": pwd} if pwd else {}
 
 
 def load_beru():
@@ -273,7 +286,12 @@ def detect_full_name(user_input_lower, *, original_text=None):
 
     skip_words = NAME_FILLER_WORDS | GREETING_WORDS
     stripped = _strip_name_intro(user_input_lower)
-    words = [w for w in stripped.split() if w not in skip_words and len(w) > 1]
+    words = []
+    for w in stripped.split():
+        clean = w.strip('.,!?;:').lower()
+        if clean in skip_words or len(clean) <= 1:
+            continue
+        words.append(w.strip('.,!?;:'))
 
     if len(words) >= 2:
         full_name = _title_name_words(words)
@@ -398,6 +416,8 @@ def get_response(
     language_hint=None,
 ):
     """Return (response_text, source) where source tracks how the answer was produced."""
+    meta = {}
+    _turn_meta.set(meta)
     memory.clear_invalid_guest_identity()
     in_gate = (
         not memory.is_session_identified()
@@ -418,9 +438,9 @@ def get_response(
     user_input_lower = user_input.lower()
     tone = memory.get_tone()
 
-    # Password check for protected users (e.g. Omar)
+    # Password check for protected users (legacy — disabled when BERU_VOICE_AUTH=1)
     pending_name = memory.get_pending_name()
-    if pending_name:
+    if pending_name and protected_users().get(pending_name):
         pending_language = memory.session.get("pending_language", "en")
 
         stored = protected_users().get(pending_name)
@@ -437,6 +457,35 @@ def get_response(
         if language == "sv":
             return "Fel lösenord! Jag kan inte verifiera din identitet. Vem är du?", 'gate'
         return "Wrong password! I cannot verify your identity. Who are you?", 'gate'
+
+    from src.voice_auth import voice_auth_enabled
+    from src.wake import is_wake_only, is_wake_phrase, sounds_like_wake, strip_wake_prefix, wake_greeting
+
+    if sounds_like_wake(user_input):
+        remainder = strip_wake_prefix(user_input)
+        if not remainder or is_wake_only(user_input):
+            if memory.is_owner():
+                return wake_greeting(language, memory=memory), 'wake'
+            if memory.is_awaiting_voice_wake() or voice_auth_enabled():
+                return memory.prompt_voice_wake(language), 'gate'
+        elif memory.is_owner():
+            user_input = remainder
+            user_input_lower = user_input.lower()
+
+    if memory.is_owner() and is_wake_only(user_input):
+        return wake_greeting(language, memory=memory), 'wake'
+
+    if memory.is_owner() and is_wake_phrase(user_input):
+        remainder = strip_wake_prefix(user_input)
+        if remainder and len(remainder.split()) >= 2:
+            user_input = remainder
+            user_input_lower = user_input.lower()
+        elif is_wake_only(user_input):
+            return wake_greeting(language, memory=memory), 'wake'
+
+    if voice_auth_enabled() and not memory.is_session_identified():
+        if memory.is_awaiting_voice_wake():
+            return memory.prompt_voice_wake(language), 'gate'
 
     # Must know who is talking before anything else
     if not memory.is_session_identified():
@@ -479,7 +528,11 @@ def get_response(
                 return memory.ask_full_name(language, partial_first_name=single), 'gate'
             return memory.ask_full_name(language, partial_first_name=partial), 'gate'
 
-        # Waiting for Omar to confirm identity
+        # Voice-only owner gate (no password)
+        if memory.is_awaiting_voice_wake():
+            return memory.prompt_voice_wake(language), 'gate'
+
+        # Waiting for Omar to confirm identity (legacy password mode)
         if memory.is_awaiting_owner_confirm():
             detected_name = detect_name(user_input_lower) or detect_arabic_name(user_input)
             full_name = detect_full_name(user_input_lower, original_text=user_input)
@@ -492,7 +545,11 @@ def get_response(
                 if not memory.is_affirmative(user_input) and detected_name != 'Omar':
                     return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
 
-            if memory.is_affirmative(user_input) or detected_name == 'Omar':
+            if (
+                memory.is_affirmative(user_input)
+                or detected_name == 'Omar'
+                or memory.claims_to_be_owner(user_input)
+            ):
                 memory.clear_awaiting_owner_confirm()
                 memory.set_pending_name('Omar', 'ar' if is_arabic_text(user_input) else language)
                 return memory.ask_owner_password(
@@ -504,6 +561,10 @@ def get_response(
                 return memory.ask_to_identify('ar' if is_arabic_text(user_input) else language), 'gate'
 
             if full_name and detected_name != 'Omar':
+                if memory.claims_to_be_owner(user_input) or 'omar' in user_input_lower:
+                    memory.clear_awaiting_owner_confirm()
+                    memory.set_pending_name('Omar', language)
+                    return memory.ask_owner_password(language), 'gate'
                 if looks_like_question(user_input_lower):
                     return memory.ask_owner_confirm_again(language), 'gate'
                 memory.clear_awaiting_owner_confirm()
@@ -525,6 +586,10 @@ def get_response(
                 return f"Hej! Jag känner igen namnet {detected_name}. Vad är lösenordet?", 'gate'
             return f"Hey! I recognize the name {detected_name}. What is the password?", 'gate'
 
+        if detected_name == 'Omar' and voice_auth_enabled():
+            memory.session['awaiting_voice_wake'] = True
+            return memory.prompt_voice_wake(language), 'gate'
+
         if full_name and len(full_name.split()) >= 2 and detected_name != 'Omar':
             if looks_like_question(user_input_lower):
                 return memory.ask_to_identify(language), 'gate'
@@ -538,6 +603,95 @@ def get_response(
             return memory.answer_arabic_gate_small_talk(user_input, 'ar'), 'gate'
 
         return memory.ask_to_identify(language), 'gate'
+
+    # Normal conversation — before computer agent (avoids opening browser on chitchat)
+    if memory.is_owner() and memory.is_beru_activity_question(user_input):
+        return memory.answer_beru_activity_question(user_input, language), 'knowledge'
+
+    if memory.is_owner() and memory.is_beru_experience_question(user_input):
+        return memory.answer_beru_experience_question(language), 'knowledge'
+
+    if memory.is_session_identified() and memory.is_chat_only_message(user_input):
+        return memory.answer_chat_only(language), 'memory'
+
+    if memory.is_casual_conversation_reply(user_input):
+        return memory.answer_casual_reply(language), 'memory'
+
+    from src.computer_nlu import is_talking_to_beru
+
+    if memory.is_owner() and is_talking_to_beru(user_input):
+        if any(x in user_input_lower for x in ('open', 'browser', 'search', 'google')):
+            if language == 'sv':
+                return (
+                    'Förlåt bro, jag trodde du ville att jag skulle söka. '
+                    'Jag är här för att snacka — vad vill du göra idag?'
+                ), 'memory'
+            return (
+                "Sorry bro, I thought you wanted a web search. I'm here to talk — "
+                "what do you want to do today?"
+            ), 'memory'
+        knowledge_answer = memory.answer_from_knowledge(user_input, language)
+        if knowledge_answer:
+            return knowledge_answer, 'knowledge'
+        if brain:
+            print('[Beru conversational reply...]')
+            return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
+
+    # Owner computer control — explicit web/screen commands only
+    from src.computer_control import (
+        answer_computer_followup,
+        apply_turn_meta,
+        execute as run_computer_action,
+        execute_browser_end,
+        is_browser_session_end,
+        is_computer_control_request,
+        is_computer_followup,
+        remember_computer_action,
+        release_overlay_for_ui,
+    )
+
+    if memory.is_owner() and memory.get_last_computer_action() and is_browser_session_end(user_input):
+        print("[Beru browser session end...]")
+        action = release_overlay_for_ui(execute_browser_end(language=language))
+        remember_computer_action(memory, action)
+        apply_turn_meta(meta, action)
+        return action.message, action.source
+
+    if is_computer_control_request(
+        user_input, is_owner=memory.is_owner(), memory=memory, brain=brain,
+    ):
+        print("[Beru computer control...]")
+        try:
+            action = release_overlay_for_ui(
+                run_computer_action(
+                    user_input, language=language, memory=memory, brain=brain,
+                )
+            )
+        except Exception as exc:
+            print(f"[Computer control error: {exc}]")
+            from src.computer_control import ComputerActionResult
+
+            action = ComputerActionResult(
+                ok=False,
+                message=(
+                    'Something went wrong on that computer action. Try again or say '
+                    f'what you want me to search or open. ({exc})'
+                ),
+                activity='browsing',
+                source='computer',
+            )
+        remember_computer_action(memory, action)
+        apply_turn_meta(meta, action)
+        return action.message, action.source
+
+    if memory.is_owner() and is_computer_followup(user_input, memory):
+        print("[Beru computer follow-up...]")
+        action = release_overlay_for_ui(
+            answer_computer_followup(user_input, memory, language=language)
+        )
+        remember_computer_action(memory, action)
+        apply_turn_meta(meta, action)
+        return action.message, action.source
 
     # Code capability + explain-code-from-chat (before search/router can misroute)
     if memory.knowledge.is_code_capability_question(user_input):
@@ -644,15 +798,6 @@ def get_response(
     if memory.is_asking_about_other_person(user_input):
         return memory.answer_about_other_person(user_input, language), 'memory'
 
-    if memory.is_casual_conversation_reply(user_input):
-        return memory.answer_casual_reply(language), 'memory'
-
-    if memory.is_beru_activity_question(user_input):
-        return memory.answer_beru_activity_question(user_input, language), 'memory'
-
-    if memory.is_beru_experience_question(user_input):
-        return memory.answer_beru_experience_question(language), 'memory'
-
     # Permanent knowledge — Beru identity and Omar facts
     knowledge_answer = memory.answer_from_knowledge(user_input, language)
     if knowledge_answer:
@@ -722,6 +867,7 @@ def get_response(
 
     if route == ROUTE_SEARCH:
         print("[Searching internet...]")
+        meta['activity'] = 'searching'
         result = search.search(user_input)
         if result:
             result = re.sub(r"\[\d+\]", "", result).strip()

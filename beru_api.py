@@ -14,12 +14,12 @@ import tempfile
 from contextlib import contextmanager
 
 from flask import Flask, request, jsonify, Response
-from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
+from src.api_contract import ui_chat_payload
+from src.api_cors import init_cors
 from src.client_sessions import bind_client_session, reset_client_session
 from src.pipeline import BeruPipeline
-from src.text_direction import text_direction_for_language
 from src.text_style import strip_long_dashes
 from src.voice import (
     capabilities as voice_capabilities,
@@ -29,9 +29,10 @@ from src.voice import (
     transcribe_file,
     SUPPORTED_AUDIO_EXTENSIONS,
 )
+from src import voice_auth
 
 app = Flask(__name__)
-CORS(app)
+init_cors(app)
 
 pipeline = BeruPipeline()
 
@@ -117,32 +118,48 @@ def start():
     with _client_session_scope():
         greeting = pipeline.start_session(clear_history=True, language=lang, client_session_id=sid)
         memory = pipeline.memory
-        return jsonify({
-            'response': greeting,
-            'language': lang,
-            'text_direction': text_direction_for_language(lang),
-            'known_user': memory.is_session_identified(),
-            'awaiting_owner_confirm': memory.is_awaiting_owner_confirm(),
-            'is_owner': memory.is_owner(),
-            'tone': memory.get_tone(),
-            'active_document': memory.get_active_document_info(),
-        })
+        return jsonify(ui_chat_payload(
+            response=greeting,
+            language=lang,
+            active_document=memory.get_active_document_info(),
+            source='gate',
+            tone=memory.get_tone(),
+            user=memory.get_user_name(),
+            is_owner=memory.is_owner(),
+            session_identified=memory.is_session_identified(),
+            awaiting_owner_confirm=memory.is_awaiting_owner_confirm(),
+            awaiting_voice_wake=memory.is_awaiting_voice_wake(),
+            voice_verified=memory.is_voice_verified(),
+            voice_enrolled=voice_auth.is_enrolled(),
+            extra={'known_user': memory.is_session_identified()},
+        ))
 
 
 @app.route('/clear', methods=['POST'])
 def clear_chat():
+    data = request.get_json(silent=True) or {}
+    lang_hint = (data.get('language') or '').strip() or None
     with _client_session_scope():
-        lang = pipeline.memory.session.get('language') or 'en'
+        lang = lang_hint or pipeline.memory.session.get('language') or 'en'
         greeting = pipeline.start_session(
             clear_history=True, language=lang, client_session_id=_collector_session_id()
         )
-        return jsonify({
-            'status': 'ok',
-            'response': greeting,
-            'language': lang,
-            'text_direction': text_direction_for_language(lang),
-            'active_document': None,
-        })
+        memory = pipeline.memory
+        payload = ui_chat_payload(
+            response=greeting,
+            language=lang,
+            active_document=None,
+            source='gate',
+            tone=memory.get_tone(),
+            is_owner=memory.is_owner(),
+            session_identified=memory.is_session_identified(),
+            awaiting_owner_confirm=memory.is_awaiting_owner_confirm(),
+            awaiting_voice_wake=memory.is_awaiting_voice_wake(),
+            voice_verified=memory.is_voice_verified(),
+            voice_enrolled=voice_auth.is_enrolled(),
+        )
+        payload['status'] = 'ok'
+        return jsonify(payload)
 
 
 @app.route('/documents', methods=['GET'])
@@ -233,12 +250,13 @@ def chat():
             collector_session_id=sid,
             client_session_id=sid,
         )
-        return jsonify(result)
+        return jsonify(ui_chat_payload(**result))
 
 
 @app.route('/health', methods=['GET'])
 def health():
     from src.conversation_collector import collect_dir, collection_enabled
+    from src.computer_control import capabilities as computer_capabilities
 
     doc_count = len(pipeline.rag.document_index.documents)
     return jsonify({
@@ -247,12 +265,77 @@ def health():
         'documents_indexed': doc_count,
         'conversation_collection': collection_enabled(),
         'conversation_collect_dir': str(collect_dir()),
+        'computer_control': computer_capabilities(),
     })
+
+
+@app.route('/computer/capabilities', methods=['GET'])
+def computer_caps():
+    from src.computer_control import capabilities as computer_capabilities
+
+    return jsonify(computer_capabilities())
 
 
 @app.route('/voice/capabilities', methods=['GET'])
 def voice_caps():
-    return jsonify(voice_capabilities())
+    caps = voice_capabilities()
+    caps.update(voice_auth.auth_status())
+    return jsonify(caps)
+
+
+@app.route('/voice/auth/status', methods=['GET'])
+def voice_auth_status():
+    with _client_session_scope():
+        return jsonify(voice_auth.auth_status(pipeline.memory))
+
+
+@app.route('/voice/enroll', methods=['POST'])
+def voice_enroll():
+    """Enroll Omar voice profile (2–5 short clips, form key audio or audio0..audio4)."""
+    paths = []
+    tmp_paths = []
+    try:
+        uploads = request.files.getlist('audio')
+        if not uploads:
+            uploads = [
+                request.files[k]
+                for k in sorted(request.files.keys())
+                if k.startswith('audio')
+            ]
+        if not uploads:
+            return jsonify({'error': 'Send one or more audio files under form key "audio".'}), 400
+
+        for idx, upload in enumerate(uploads):
+            if upload is None:
+                continue
+            raw_name = (upload.filename or '').strip()
+            _, ext = os.path.splitext(secure_filename(raw_name))
+            if not ext:
+                ext = '.webm'
+            upload.seek(0, os.SEEK_END)
+            size = upload.tell()
+            upload.seek(0)
+            if size < 100:
+                continue
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                upload.save(tmp.name)
+                paths.append(tmp.name)
+                tmp_paths.append(tmp.name)
+
+        if not paths:
+            return jsonify({
+                'ok': False,
+                'error': 'No audio files received. Send multipart form field "audio" with WebM/WAV clips (~2–4 s each).',
+            }), 400
+
+        result = voice_auth.enroll_audio_paths(paths)
+        if not result.get('ok'):
+            return jsonify(result), 422
+        return jsonify(result)
+    finally:
+        for p in tmp_paths:
+            if p and os.path.exists(p):
+                os.unlink(p)
 
 
 @app.route('/voice/transcribe', methods=['POST'])
@@ -288,12 +371,17 @@ def voice_chat():
 
     tmp_path = None
     try:
+        import time as _time
+        from src.performance import debug_timing
+
+        t0 = _time.perf_counter()
         suffix = os.path.splitext(secure_filename(upload.filename))[1] or '.webm'
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             upload.save(tmp.name)
             tmp_path = tmp.name
 
         stt = transcribe_file(tmp_path, language_hint=language_hint)
+        t_stt = _time.perf_counter()
         transcript = stt['text']
         if len(transcript.split()) < 1:
             return jsonify({'error': 'Could not understand audio. Please try again.'}), 422
@@ -301,10 +389,54 @@ def voice_chat():
         turn_language = language_hint if language_hint in ('en', 'sv', 'ar') else stt['language']
         sid = _collector_session_id()
         with _client_session_scope():
+            memory = pipeline.memory
+            voice_score = None
+
+            if voice_auth.voice_auth_enabled() and not memory.is_session_identified():
+                if not voice_auth.is_enrolled():
+                    gate_msg = memory.prompt_voice_wake(turn_language)
+                    ui_gate = ui_chat_payload(
+                        response=gate_msg,
+                        language=turn_language,
+                        source='gate',
+                        session_identified=False,
+                        is_owner=False,
+                        awaiting_voice_wake=True,
+                        voice_verified=False,
+                        voice_enrolled=False,
+                    )
+                    ui_gate['transcript'] = transcript
+                    ui_gate['transcript_language'] = stt['language']
+                    return jsonify(ui_gate)
+
+                matched, voice_score = voice_auth.verify_audio_path(tmp_path)
+                if not matched:
+                    if turn_language == 'sv':
+                        fail = 'Jag känner inte igen rösten, sir. Säg Beru igen eller registrera om din röst.'
+                    elif turn_language == 'ar':
+                        fail = 'لم أتعرف على الصوت يا سيدي. قل Beru مرة أخرى أو أعد تسجيل صوتك.'
+                    else:
+                        fail = "I don't recognize that voice, sir. Say Beru again or re-enroll your voice."
+                    ui_gate = ui_chat_payload(
+                        response=fail,
+                        language=turn_language,
+                        source='gate',
+                        session_identified=False,
+                        is_owner=False,
+                        awaiting_voice_wake=True,
+                        voice_verified=False,
+                        voice_enrolled=True,
+                    )
+                    ui_gate['transcript'] = transcript
+                    ui_gate['transcript_language'] = stt['language']
+                    ui_gate['voice_score'] = round(voice_score, 3)
+                    return jsonify(ui_gate)
+                memory.confirm_owner_by_voice(turn_language)
+
             if document_id:
                 doc = pipeline.rag.document_index.get_document(document_id)
                 if doc:
-                    pipeline.memory.set_active_document(doc['id'], doc['filename'])
+                    memory.set_active_document(doc['id'], doc['filename'])
 
             result = pipeline.chat_turn(
                 transcript,
@@ -314,19 +446,32 @@ def voice_chat():
                 collector_session_id=sid,
                 client_session_id=sid,
             )
-        result['transcript'] = transcript
-        result['transcript_language'] = stt['language']
+            if voice_score is not None:
+                result['voice_score'] = round(voice_score, 3)
+        t_chat = _time.perf_counter()
+        ui_result = ui_chat_payload(**result)
+        ui_result['transcript'] = transcript
+        ui_result['transcript_language'] = stt['language']
+        if result.get('voice_score') is not None:
+            ui_result['voice_score'] = result['voice_score']
 
         if _parse_bool(request.form.get('include_audio'), False) and is_tts_available():
             try:
-                lang = result.get('language') or stt['language'] or 'en'
-                audio_bytes, mime = synthesize_speech(result['response'], lang)
-                result['audio_base64'] = base64.b64encode(audio_bytes).decode('ascii')
-                result['audio_mime'] = mime
+                lang = ui_result.get('language') or stt['language'] or 'en'
+                audio_bytes, mime = synthesize_speech(ui_result['response'], lang)
+                ui_result['audio_base64'] = base64.b64encode(audio_bytes).decode('ascii')
+                ui_result['audio_mime'] = mime
             except Exception as exc:
-                result['audio_error'] = str(exc)
+                ui_result['audio_error'] = str(exc)
 
-        return jsonify(result)
+        if debug_timing():
+            ui_result['timing_ms'] = {
+                'stt': round((t_stt - t0) * 1000),
+                'chat': round((t_chat - t_stt) * 1000),
+                'total': round((_time.perf_counter() - t0) * 1000),
+            }
+
+        return jsonify(ui_result)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:

@@ -276,6 +276,8 @@ class BeruMemory:
             'pending_name': None,
             'pending_language': None,
             'awaiting_owner_confirm': False,
+            'awaiting_voice_wake': False,
+            'voice_verified': False,
             'awaiting_full_name': False,
             'partial_first_name': None,
             'awaiting_disambiguation': False,
@@ -355,8 +357,13 @@ class BeruMemory:
             self.session['active_document_name'] = prev_doc_name
         if clear_history:
             self.clear_conversation()
+        from src.voice_auth import voice_auth_enabled
+
         if self.is_owner_permanently_verified():
-            self.session['awaiting_owner_confirm'] = True
+            if voice_auth_enabled():
+                self.session['awaiting_voice_wake'] = True
+            else:
+                self.session['awaiting_owner_confirm'] = True
 
     def clear_conversation(self):
         """Clear chat history for a new conversation."""
@@ -396,6 +403,8 @@ class BeruMemory:
                 user.setdefault('visit_count', len(user.get('sessions', [])))
                 user['full_name'] = self._sanitize_stored_full_name(user['full_name'])
                 user['first_name'] = self._first_name(user['full_name'])
+                if self._is_bogus_gate_name(user.get('full_name', '')):
+                    continue
                 migrated[key] = user
                 continue
 
@@ -413,6 +422,12 @@ class BeruMemory:
     def _legacy_user_id(self, full_name):
         digest = hashlib.sha256(self.normalize_full_name(full_name).encode()).hexdigest()[:8]
         return f"usr_{digest}"
+
+    @staticmethod
+    def _is_bogus_gate_name(full_name):
+        """Drop mistaken guest names from Omar yes/no gate (e.g. 'Yes, Omar')."""
+        fn = (full_name or '').lower().strip()
+        return fn.startswith(('yes,', 'yes ')) or fn in {'yes, omar', 'yes omar'}
 
     def _sanitize_stored_full_name(self, full_name):
         """Fix bad stored names like 'Its Sara' → 'Sara' (incomplete, re-ask later)."""
@@ -748,6 +763,51 @@ class BeruMemory:
     def is_awaiting_owner_confirm(self):
         return self.session.get('awaiting_owner_confirm', False)
 
+    def is_awaiting_voice_wake(self):
+        return self.session.get('awaiting_voice_wake', False)
+
+    def is_voice_verified(self):
+        return self.session.get('voice_verified', False)
+
+    def clear_awaiting_voice_wake(self):
+        self.session['awaiting_voice_wake'] = False
+
+    def confirm_owner_by_voice(self, language='en'):
+        """Identify Omar for this session via voice — no password."""
+        self.identify_session(OWNER_NAME, language, is_owner=True)
+        self.session['voice_verified'] = True
+        self.session['awaiting_voice_wake'] = False
+        if not self.is_owner_permanently_verified():
+            self.known_users.setdefault(OWNER_NAME, {})
+            self.known_users[OWNER_NAME]['permanently_verified'] = True
+            self.known_users[OWNER_NAME]['is_owner'] = True
+            self.save_memory()
+            print(f'Beru saved {OWNER_NAME} as owner permanently (voice)!')
+
+    def prompt_voice_wake(self, language='en'):
+        from src.voice_auth import is_enrolled
+
+        if not is_enrolled():
+            if language == 'sv':
+                return (
+                    'Hej Omar! Jag känner din röst ännu inte. '
+                    'Spela in din röst en gång i inställningarna, sedan säg Beru för att väcka mig.'
+                )
+            if language == 'ar':
+                return (
+                    'أهلاً عمر! لم أسجل صوتك بعد. '
+                    'سجّل صوتك مرة واحدة في الإعدادات، ثم قل Beru لإيقاظي.'
+                )
+            return (
+                "Hey Omar! I don't have your voice profile yet. "
+                'Enroll your voice once in settings, then say Beru to wake me up.'
+            )
+        if language == 'sv':
+            return 'Hej Omar! Säg Beru eller "Vakna Beru" så jag vet att det är du.'
+        if language == 'ar':
+            return 'أهلاً عمر! قل Beru أو "استيقظ Beru" لأعرف أنك أنت.'
+        return 'Hey Omar! Say Beru or "Wake up Beru" so I know it is you, sir.'
+
     @staticmethod
     def _normalize_confirm_text(text):
         return re.sub(r'\s+', ' ', text.lower().strip().strip('!.?, '))
@@ -762,7 +822,12 @@ class BeruMemory:
         normalized = cls._normalize_confirm_text(text)
         if is_arabic_text(text):
             return normalized
-        return ' '.join(cls._collapse_repeats(word) for word in normalized.split())
+        words = []
+        for word in normalized.split():
+            word = word.strip('.,!?;:')
+            if word:
+                words.append(cls._collapse_repeats(word))
+        return ' '.join(words)
 
     @classmethod
     def looks_like_yes_or_no(cls, text):
@@ -796,6 +861,8 @@ class BeruMemory:
             'yes it is', 'that is me', 'it is me', 'thats me', "that's me",
             'i am omar', "i'm omar", 'im omar', 'det är jag', 'ja det är jag',
             'yes i am omar', 'yeah its me', 'it is omar', 'its omar', "it's omar",
+            "it's me omar", 'its me omar', 'yes its me omar', "yes it's me omar",
+            'yes it is me omar', 'yeah its me omar', 'me omar', 'creator',
             'انا عمر', 'أنا عمر', 'نعم انا عمر', 'نعم أنا عمر', 'نعم عمر',
         ]
         raw = text.strip()
@@ -892,6 +959,8 @@ class BeruMemory:
             'pending_name': None,
             'pending_language': None,
             'awaiting_owner_confirm': False,
+            'awaiting_voice_wake': False,
+            'voice_verified': is_owner,
             'awaiting_full_name': False,
             'partial_first_name': None,
             'awaiting_disambiguation': False,
@@ -1208,11 +1277,29 @@ class BeruMemory:
         text_lower = text.lower()
         return any(trigger in text_lower for trigger in NAME_TRIGGERS)
 
+    @staticmethod
+    def claims_to_be_owner(text):
+        tl = (text or '').lower()
+        if 'omar' not in tl and 'عمر' not in tl:
+            return False
+        owner_claims = (
+            'i am omar', "i'm omar", 'im omar', 'its me omar', "it's me omar",
+            'yes its me omar', "yes it's me omar", 'me omar', 'your creator',
+            'my creator', 'built you', 'created you', 'انا عمر', 'أنا عمر',
+        )
+        return any(p in tl for p in owner_claims)
+
     def answer_identity(self, language='en'):
         if not self.is_session_identified():
             return self.ask_to_identify(language)
 
-        if self.is_owner():
+        if self.is_owner() or (
+            self.is_owner_permanently_verified()
+            and self.session.get('name', '').lower().startswith('yes')
+        ):
+            if not self.is_owner():
+                self.session['is_owner'] = True
+                self.session['name'] = OWNER_NAME
             if language == 'sv':
                 return f'Självklart! Du är {OWNER_NAME}, min skapare och bästa kompis!'
             if language == 'ar':
@@ -1631,10 +1718,31 @@ class BeruMemory:
             or self.is_omar_recall_instructions(text)
         )
 
+    def is_chat_only_message(self, text):
+        """User is just chatting — not planning their day or asking for web/computer."""
+        tl = text.lower().strip().strip('.!,')
+        markers = (
+            'just chatting', 'only chatting', 'just talking to you', 'only talking to you',
+            "that's all", 'thats all', 'that is all', 'nothing else', 'no more than that',
+            'just hanging out', 'only here to chat', 'just want to chat', 'just wanna chat',
+            'bara chatta', 'bara prata med dig', 'inget mer', 'det är allt',
+        )
+        return any(m in tl for m in markers)
+
+    def answer_chat_only(self, language='en'):
+        if language == 'sv':
+            return 'Härligt bro, jag är här. Vi kan bara snacka — vad tänker du på?'
+        if language == 'ar':
+            return 'تمام! أنا هنا للدردشة — عن ماذا تريد أن نتحدث؟'
+        return "Got you bro, I'm here to chat. What's on your mind?"
+
     def is_casual_conversation_reply(self, text):
         """Short replies to Beru's question/offer  -  not factual questions."""
         if not self.is_session_identified():
             return False
+
+        if self.is_chat_only_message(text):
+            return True
 
         text_lower = text.lower().strip().strip('.!,')
         casual_phrases = [
@@ -1645,28 +1753,48 @@ class BeruMemory:
             'nah', 'nope im good', "nope i'm good", 'sounds good', 'sure thing',
             'yeah sure', 'yes please', 'ok sure', 'okay sure',
             'nej tack', 'jag är bra', 'det är bra', 'ingen fara', 'nej det är bra',
+            'just chilling', 'chill at home', 'staying home', 'stanna hemma',
         ]
-        if not any(
-            text_lower == p or text_lower.startswith(p + ' ') or text_lower.startswith(p + '.')
-            for p in casual_phrases
-        ):
-            if text_lower not in {'good', 'fine', 'okay', 'ok', 'sure', 'yeah', 'yes', 'no', 'nah', 'nope'}:
-                return False
+        short_acks = {
+            'good', 'fine', 'okay', 'ok', 'sure', 'yeah', 'yes', 'no', 'nah', 'nope',
+            'nice', 'cool', 'alright', 'great', 'thanks', 'thank you',
+        }
+        is_short = (
+            text_lower in short_acks
+            or any(
+                text_lower == p or text_lower.startswith(p + ' ') or text_lower.startswith(p + '.')
+                for p in casual_phrases
+            )
+        )
+        if not is_short:
+            return False
 
         recent_beru = [m for m in self.conversation_history if m['role'] == 'beru']
         if not recent_beru:
-            return False
+            return is_short
         last_beru = recent_beru[-1]['text'].lower()
+        if is_short and text_lower in short_acks:
+            return True
         return (
             '?' in last_beru
             or any(w in last_beru for w in (
                 'want', 'would you', 'do you', 'can i', 'shall i', 'need',
                 'like some', 'how about', 'interested', 'would you like',
                 'tea', 'help', 'suggest', 'recommend', 'anything else',
+                'going to the gym', 'unwind', 'relaxing',
             ))
         )
 
     def answer_casual_reply(self, language='en'):
+        recent_human = [m['text'].lower() for m in self.conversation_history if m['role'] == 'human']
+        last_user = recent_human[-1] if recent_human else ''
+        if self.is_chat_only_message(last_user):
+            return self.answer_chat_only(language)
+        if 'chill' in last_user and 'home' in last_user:
+            if language == 'sv':
+                return 'Låter skönt bro, njut av hemmakvällen! Jag finns här om du vill snacka.'
+            return "Sounds nice bro, enjoy chilling at home! I'm here if you want to talk."
+
         if self.is_owner():
             if language == 'sv':
                 return 'Okej bro, helt lugnt! Vad vill du göra?'
@@ -2630,6 +2758,8 @@ class BeruMemory:
         return 'formal'
 
     def greeting_for_session(self, language='en'):
+        if self.is_awaiting_voice_wake():
+            return self.prompt_voice_wake(language)
         if self.is_awaiting_owner_confirm():
             if language == 'sv':
                 return f'Hej! Är det du {OWNER_NAME}?'
@@ -2651,12 +2781,9 @@ class BeruMemory:
         return f'Hello {display}! Nice to meet you. How may I help you?'
 
     def owner_greeting(self, language='en'):
-        if language == 'sv':
-            return 'Rätt lösenord! Tjena Omar! Vad händer kompis?'
-        if language == 'ar':
-            name = owner_display_name('ar')
-            return f'كلمة المرور صحيحة! أهلاً {name}! كيف حالك يا صديقي؟'
-        return 'Correct password! Hey Omar! What is up bro?'
+        from src.wake import wake_greeting
+
+        return wake_greeting(language, memory=self)
 
     def set_active_document(self, doc_id, filename):
         self.session['active_document_id'] = doc_id
@@ -2680,6 +2807,40 @@ class BeruMemory:
             'id': doc_id,
             'filename': self.get_active_document_name(),
         }
+
+    def set_last_computer_action(
+        self, *, action_type, query='', url='', summary='', page_title='', page_text='',
+    ):
+        self.session['last_computer'] = {
+            'type': action_type,
+            'query': (query or '').strip(),
+            'url': (url or '').strip(),
+            'summary': (summary or '').strip(),
+            'page_title': (page_title or '').strip(),
+            'page_text': (page_text or '').strip(),
+        }
+
+    def get_last_computer_action(self):
+        return dict(self.session.get('last_computer') or {})
+
+    def clear_last_computer_action(self):
+        self.session.pop('last_computer', None)
+
+    def update_last_computer_summary(self, summary: str):
+        last = self.get_last_computer_action()
+        if not last:
+            return
+        last['summary'] = (summary or '').strip()
+        self.session['last_computer'] = last
+
+    def update_last_computer_page(self, page_text: str, page_title: str = ''):
+        last = self.get_last_computer_action()
+        if not last:
+            return
+        last['page_text'] = (page_text or '').strip()
+        if page_title:
+            last['page_title'] = page_title.strip()
+        self.session['last_computer'] = last
 
     def answer_pre_upload_document_intent(self, language='en'):
         if language == 'sv':
