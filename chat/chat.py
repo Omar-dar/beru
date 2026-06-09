@@ -416,6 +416,9 @@ def get_response(
     language_hint=None,
 ):
     """Return (response_text, source) where source tracks how the answer was produced."""
+    from src.stt_normalize import normalize_stt_text
+
+    user_input = normalize_stt_text(user_input)
     meta = {}
     _turn_meta.set(meta)
     memory.clear_invalid_guest_identity()
@@ -459,7 +462,18 @@ def get_response(
         return "Wrong password! I cannot verify your identity. Who are you?", 'gate'
 
     from src.voice_auth import voice_auth_enabled
-    from src.wake import is_wake_only, is_wake_phrase, sounds_like_wake, strip_wake_prefix, wake_greeting
+    from src.wake import (
+        is_near_wake_miss,
+        is_wake_only,
+        is_wake_phrase,
+        sounds_like_wake,
+        strip_wake_prefix,
+        wake_greeting,
+        wake_miss_prompt,
+    )
+
+    if memory.is_awaiting_voice_wake() and is_near_wake_miss(user_input):
+        return wake_miss_prompt(language), 'gate'
 
     if sounds_like_wake(user_input):
         remainder = strip_wake_prefix(user_input)
@@ -605,6 +619,15 @@ def get_response(
         return memory.ask_to_identify(language), 'gate'
 
     # Normal conversation — before computer agent (avoids opening browser on chitchat)
+    if memory.is_owner() and memory.is_language_preference_statement(user_input):
+        pref = memory.apply_language_preference(user_input)
+        if pref:
+            language = pref
+            return memory.answer_language_preference_ack(pref, language), 'memory'
+
+    if memory.is_owner() and memory.is_owner_asking_who_is_omar(user_input):
+        return memory.answer_owner_who_is_omar(language), 'memory'
+
     if memory.is_owner() and memory.is_beru_activity_question(user_input):
         return memory.answer_beru_activity_question(user_input, language), 'knowledge'
 
@@ -617,32 +640,26 @@ def get_response(
     if memory.is_casual_conversation_reply(user_input):
         return memory.answer_casual_reply(language), 'memory'
 
-    from src.computer_nlu import is_talking_to_beru
+    from src.router import is_code_generation_request
 
-    if memory.is_owner() and is_talking_to_beru(user_input):
-        if any(x in user_input_lower for x in ('open', 'browser', 'search', 'google')):
-            if language == 'sv':
-                return (
-                    'Förlåt bro, jag trodde du ville att jag skulle söka. '
-                    'Jag är här för att snacka — vad vill du göra idag?'
-                ), 'memory'
-            return (
-                "Sorry bro, I thought you wanted a web search. I'm here to talk — "
-                "what do you want to do today?"
-            ), 'memory'
-        knowledge_answer = memory.answer_from_knowledge(user_input, language)
-        if knowledge_answer:
-            return knowledge_answer, 'knowledge'
-        if brain:
-            print('[Beru conversational reply...]')
-            return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
+    if brain and is_code_generation_request(user_input):
+        print('[Beru code generation...]')
+        return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
 
-    # Owner computer control — explicit web/screen commands only
+    if memory.knowledge.is_beru_self_question(user_input):
+        self_answer = memory.knowledge.answer_beru_self_question(
+            user_input, language, memory=memory,
+        )
+        if self_answer:
+            return self_answer, 'knowledge'
+
+    # Owner computer control — before conversational brain (explicit open/search wins)
     from src.computer_control import (
         answer_computer_followup,
         apply_turn_meta,
         execute as run_computer_action,
         execute_browser_end,
+        execute_pending_client_actions,
         is_browser_session_end,
         is_computer_control_request,
         is_computer_followup,
@@ -650,10 +667,20 @@ def get_response(
         release_overlay_for_ui,
     )
 
+    if memory.is_owner() and memory.has_pending_client_actions() and memory.is_action_confirm(user_input):
+        print('[Beru pending client action confirm...]')
+        action = execute_pending_client_actions(memory, language=language)
+        if action:
+            remember_computer_action(memory, action)
+            action = release_overlay_for_ui(action)
+            apply_turn_meta(meta, action)
+            return action.message, action.source
+
     if memory.is_owner() and memory.get_last_computer_action() and is_browser_session_end(user_input):
         print("[Beru browser session end...]")
-        action = release_overlay_for_ui(execute_browser_end(language=language))
+        action = execute_browser_end(language=language)
         remember_computer_action(memory, action)
+        action = release_overlay_for_ui(action)
         apply_turn_meta(meta, action)
         return action.message, action.source
 
@@ -662,10 +689,8 @@ def get_response(
     ):
         print("[Beru computer control...]")
         try:
-            action = release_overlay_for_ui(
-                run_computer_action(
-                    user_input, language=language, memory=memory, brain=brain,
-                )
+            action = run_computer_action(
+                user_input, language=language, memory=memory, brain=brain,
             )
         except Exception as exc:
             print(f"[Computer control error: {exc}]")
@@ -681,17 +706,27 @@ def get_response(
                 source='computer',
             )
         remember_computer_action(memory, action)
+        action = release_overlay_for_ui(action)
         apply_turn_meta(meta, action)
         return action.message, action.source
 
     if memory.is_owner() and is_computer_followup(user_input, memory):
         print("[Beru computer follow-up...]")
-        action = release_overlay_for_ui(
-            answer_computer_followup(user_input, memory, language=language)
-        )
+        action = answer_computer_followup(user_input, memory, language=language)
         remember_computer_action(memory, action)
+        action = release_overlay_for_ui(action)
         apply_turn_meta(meta, action)
         return action.message, action.source
+
+    from src.computer_nlu import is_talking_to_beru
+
+    if memory.is_owner() and is_talking_to_beru(user_input):
+        knowledge_answer = memory.answer_from_knowledge(user_input, language)
+        if knowledge_answer:
+            return knowledge_answer, 'knowledge'
+        if brain:
+            print('[Beru conversational reply...]')
+            return brain.ask(user_input, language, tone=tone, memory=memory), 'brain'
 
     # Code capability + explain-code-from-chat (before search/router can misroute)
     if memory.knowledge.is_code_capability_question(user_input):

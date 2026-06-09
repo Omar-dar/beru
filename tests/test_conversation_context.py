@@ -27,6 +27,9 @@ class ConversationContextTests(unittest.TestCase):
     def test_can_you_code_is_not_generation_request(self):
         self.assertFalse(is_code_generation_request('can you code?'))
 
+    def test_hello_world_java_is_generation(self):
+        self.assertTrue(is_code_generation_request('Just write a hello world in Java in the chat'))
+
     def test_write_code_is_generation_request(self):
         self.assertTrue(is_code_generation_request('write me a python script'))
 

@@ -23,19 +23,18 @@ _NOT_COMPUTER = (
     'thank you', 'thanks', 'hello', 'hey there', 'how are you',
     'what do you want', 'what would you like', 'what are you doing',
     'what are you up to', 'why did you', 'why do you', 'why are you',
-    'what is this', 'what was that', 'did you open', 'you opened', 'you open',
+    'what is this', 'what was that', 'did you open', 'you opened',
     'stop opening', 'close the browser', "don't open", 'dont open',
     'just talk', 'talk to me', 'can we talk', 'are you there',
     'vad vill du', 'vad gör du', 'varför öppnade', 'varför öppnar',
 )
 
-# User talking TO Beru — never treat as a Google search.
+# User talking TO Beru — not a web task (complaints use _browser_is_complaint).
 _TALKING_TO_BERU = (
     'what do you want', 'what would you like', 'what you want to do',
     'what are you doing', 'what are you up to', 'whatcha doing',
     'why did you', 'why do you', 'why are you', 'what is this', 'what was that',
-    'did you open', 'you opened', 'you open', 'open the browser',
-    'stop opening', 'close the browser', "don't open", 'dont open',
+    'stop opening', "don't open", 'dont open',
     'just talk', 'talk to me', 'can we talk', 'are you listening',
     'vad vill du', 'vad gör du', 'varför öppnade', 'varför öppnar',
 )
@@ -44,23 +43,31 @@ _TALKING_TO_BERU = (
 def is_talking_to_beru(text: str) -> bool:
     if not text:
         return False
+    from src.computer_control import parse_computer_intent
+
+    intent = parse_computer_intent(text)
+    if intent in ('open_url', 'browser_search', 'see_computer', 'screenshot'):
+        return False
+
     tl = text.lower().strip()
+    if _browser_is_complaint(tl):
+        return True
     if any(x in tl for x in _TALKING_TO_BERU):
         return True
     if '?' in text and re.search(r'\b(you|your|du|dig|ditt)\b', tl):
         if not any(s in tl for s in _WEB_SIGNALS):
             return True
-        if any(x in tl for x in ('why did you', 'why do you', 'why are you', 'did you open')):
-            return True
     return False
 
 
 def _browser_is_complaint(tl: str) -> bool:
+    if re.search(r'(?:could|can|would|will|please)\s+you\s+open\b', tl):
+        return False
     return any(
         x in tl
         for x in (
             'why did you', 'why do you', 'why are you', 'did you open',
-            'you opened', 'you open', 'stop opening', "don't open", 'dont open',
+            'you opened', 'stop opening', "don't open", 'dont open',
             'varför öppnade', 'varför öppnar',
         )
     )
@@ -129,6 +136,23 @@ def is_natural_computer_request(text: str, *, has_browser_session: bool = False)
 
     tl = text.lower().strip()
 
+    try:
+        from src.computer_control import parse_computer_intent
+
+        if parse_computer_intent(text) in (
+            'close_tab', 'scroll_page', 'find_on_page', 'see_computer',
+            'open_url', 'takeover_help', 'screenshot',
+        ):
+            return False
+    except Exception:
+        pass
+
+    if any(x in tl for x in (
+        'what can you do', 'what you can do', 'tell me what you can do',
+        'could you tell me what you can do', 'vad kan du', 'ماذا يمكنك',
+    )):
+        return False
+
     if is_talking_to_beru(text):
         return False
 
@@ -153,6 +177,9 @@ def is_natural_computer_request(text: str, *, has_browser_session: bool = False)
     ):
         if is_talking_to_beru(text):
             return False
+        if re.search(r'\b(browser|page|screen|tab|it|that)\b', tl):
+            if not any(s in tl for s in _WEB_SIGNALS):
+                return True
         if any(x in tl for x in ('your name', 'who are you', 'goodbye', 'good bye', 'bye')):
             return False
         if not any(s in tl for s in _WEB_SIGNALS):
@@ -202,6 +229,22 @@ def extract_search_topic(text: str) -> str:
         text = remainder
 
     tl = (text or '').lower()
+    intent = None
+    try:
+        from src.computer_control import parse_computer_intent
+
+        intent = parse_computer_intent(text)
+        if intent and intent != 'browser_search':
+            return ''
+    except Exception:
+        pass
+
+    if any(x in tl for x in (
+        'what can you do', 'what you can do', 'tell me what you can do',
+        'could you tell me what you can do', 'vad kan du', 'ماذا يمكنك',
+    )):
+        return ''
+
     if is_talking_to_beru(text):
         return ''
     if any(x in tl for x in _NOT_COMPUTER):

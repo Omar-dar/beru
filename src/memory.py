@@ -9,6 +9,7 @@ from src.knowledge import (
     BeruKnowledge,
     OWNER_NAME,
     OWNER_FULL_NAME,
+    OWNER_FULL_NAME_AR,
     owner_display_name,
 )
 from src.fact_i18n import attach_event_date_by_topics, when_reply_for_fact
@@ -36,6 +37,8 @@ IDENTITY_TRIGGERS = [
     'know who i am', 'you know me', 'so you know who i am',
     'vet du vem jag är', 'kommer du ihåg mig', 'do you remember me',
     'who am i', 'vem är jag', 'minns du mig', 'remember who i am',
+    'هل تعرف من أنا', 'هل تعلم من أنا', 'تعرف من انا', 'من أنا', 'هل تعرفني',
+    'vet du vem jag är nu', 'så vet du om jag är nu',
 ]
 
 NAME_TRIGGERS = [
@@ -1236,6 +1239,65 @@ class BeruMemory:
         if language == 'sv':
             return 'Jag känner igen dig från den här sessionen.'
         return 'I recognize you from this session.'
+
+    def is_owner_asking_who_is_omar(self, text):
+        if not self.is_owner():
+            return False
+        tl = (text or '').lower()
+        if re.search(r'\b(vem|who)\s+(är|is)\s+omar\b', tl):
+            return True
+        if re.search(r'من\s+هو\s+عمر', text or ''):
+            return True
+        return False
+
+    def answer_owner_who_is_omar(self, language='en'):
+        if language == 'sv':
+            return (
+                f'Det är du bro! Du är {OWNER_FULL_NAME}, min skapare och bästa kompis. '
+                'Jag pratar alltid direkt med dig.'
+            )
+        if language == 'ar':
+            return (
+                f'أنت يا {owner_display_name("ar")}! أنت {OWNER_FULL_NAME_AR}، من أنشأني. '
+                'أتحدث معك مباشرة دائماً.'
+            )
+        return (
+            f'That is you bro! You are {OWNER_FULL_NAME}, my creator and best friend. '
+            'I always talk directly to you.'
+        )
+
+    def is_language_preference_statement(self, text):
+        tl = (text or '').lower()
+        return any(x in tl for x in (
+            'speaking in english', 'talk in english', 'speak english', 'in english',
+            'reply in english', 'answer in english', 'i am speaking english',
+            'prata engelska', 'talar engelska', 'på engelska', 'svara på engelska',
+            'بالإنجليزية', 'بالانجليزية', 'تحدث بالإنجليزية',
+            'speaking in swedish', 'talk in swedish', 'på svenska', 'tala svenska',
+            'بالعربية', 'تحدث بالعربية', 'speak arabic', 'talk in arabic',
+        ))
+
+    def apply_language_preference(self, text):
+        tl = (text or '').lower()
+        if any(x in tl for x in ('english', 'engelska', 'إنجليز', 'انجليز')):
+            self.session['language'] = 'en'
+            return 'en'
+        if any(x in tl for x in ('swedish', 'svenska')):
+            self.session['language'] = 'sv'
+            return 'sv'
+        if any(x in tl for x in ('arabic', 'arabiska', 'العربية', 'arabisk')):
+            self.session['language'] = 'ar'
+            return 'ar'
+        return None
+
+    def answer_language_preference_ack(self, lang, language='en'):
+        if lang == 'en':
+            return 'Got it bro, English from here on.'
+        if lang == 'sv':
+            return 'Okej bro, svenska från och med nu.'
+        if lang == 'ar':
+            return 'تمام، سأتحدث معك بالعربية من الآن.'
+        return 'Got it bro, I will match your language.'
 
     def is_identity_question(self, text):
         text_lower = text.lower()
@@ -2841,6 +2903,26 @@ class BeruMemory:
         if page_title:
             last['page_title'] = page_title.strip()
         self.session['last_computer'] = last
+
+    def set_pending_client_actions(self, actions: list, *, label: str = ''):
+        self.session['pending_client_actions'] = list(actions or [])
+        if label:
+            self.session['pending_action_label'] = label
+
+    def get_pending_client_actions(self):
+        return list(self.session.get('pending_client_actions') or [])
+
+    def clear_pending_client_actions(self):
+        self.session.pop('pending_client_actions', None)
+        self.session.pop('pending_action_label', None)
+
+    def has_pending_client_actions(self):
+        return bool(self.get_pending_client_actions())
+
+    def is_action_confirm(self, text):
+        from src.computer_control import is_action_confirm
+
+        return is_action_confirm(text)
 
     def answer_pre_upload_document_intent(self, language='en'):
         if language == 'sv':

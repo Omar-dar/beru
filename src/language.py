@@ -1,16 +1,25 @@
 def resolve_turn_language(text, *, hint=None, session_language=None, in_gate=False):
     """
     Pick UI/gate language for this turn.
-    Voice STT often mis-detects short replies (e.g. "Yeah" → en while user speaks Swedish).
+    Prefer the session language unless the user clearly switches script/language.
     """
     detected = detect_language(text)
     words = len(text.split())
 
-    # Script beats session default (e.g. لا / نعم must stay Arabic, not English).
     if is_arabic_text(text):
         return 'ar'
 
-    # Very short replies (yes, password, STT noise): trust UI / session hint.
+    if session_language in ('en', 'sv', 'ar') and not in_gate:
+        if words <= 4:
+            return session_language
+        if detected == session_language:
+            return session_language
+        if session_language == 'en' and detected == 'sv' and words < 8:
+            if not any(c in text for c in 'åäöÅÄÖ'):
+                return 'en'
+        if session_language == 'sv' and detected == 'en' and words < 8:
+            return session_language
+
     if words <= 2:
         if hint in ('en', 'sv', 'ar'):
             return hint
@@ -20,13 +29,9 @@ def resolve_turn_language(text, *, hint=None, session_language=None, in_gate=Fal
     if in_gate and hint in ('en', 'sv', 'ar'):
         return hint
 
-    # Normal questions: follow what the user actually wrote.
-    if hint in ('en', 'sv', 'ar') and detected != hint and words >= 3:
-        return detected
-
     if hint in ('en', 'sv', 'ar'):
         return hint
-    if session_language in ('en', 'sv', 'ar') and words <= 3:
+    if session_language in ('en', 'sv', 'ar') and words <= 5:
         return session_language
     return detected
 

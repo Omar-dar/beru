@@ -37,8 +37,25 @@ Backend spec for the floating browser widget, Playwright scraping, and `client_a
 
 | type | Purpose |
 |------|---------|
-| `open_url` | Electron opens URL in system browser (Chrome) |
+| `open_url` | Electron navigates in browser — **reuse existing tab when `reuse_tab: true`** |
+| `close_tab` | Close browser tab — optional `site` (e.g. `facebook`) to pick the right tab |
+| `scroll` | Scroll page — `{ direction: "up"|"down"|"top"|"bottom", amount: 1 }` |
+| `scroll_to_text` | Scroll until snippet visible — `{ text: "..." }` |
 | `focus_app` | Electron focuses Beru window, hides float widget |
+
+### `open_url` action
+
+```json
+{
+  "type": "open_url",
+  "url": "https://www.google.com",
+  "reuse_tab": true
+}
+```
+
+- **`url`** must be a full URL with scheme (backend normalizes spoken names: `Google` → `https://www.google.com`, `Facebook hemsida` → `https://www.facebook.com`).
+- **`reuse_tab: true`** (default): navigate the **current** browser tab instead of opening a new tab every turn. Set `false` only when the user explicitly asks for a new tab.
+- Without a TLD, Firefox/Chrome fail with “Server Not Found” — backend always adds `.com` or uses known site aliases before sending `client_actions`.
 
 End session example:
 

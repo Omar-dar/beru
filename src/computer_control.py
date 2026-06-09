@@ -18,7 +18,7 @@ SCREENSHOT_DIR = os.path.join('data', 'screenshots')
 BROWSER_SEARCH_TRIGGERS = (
     'search google', 'google search', 'search on google', 'google for',
     'search the web', 'search the internet', 'browse the web', 'browse the internet',
-    'browse for', 'look up online', 'look it up online', 'open google',
+    'browse for', 'look up online', 'look it up online',
     'open the browser and search', 'open browser and search',
     'open the browser and look', 'open browser and look',
     'search on the browser', 'search on browser', 'search in the browser',
@@ -50,7 +50,15 @@ SEE_COMPUTER_TRIGGERS = (
     'look at my computer', 'see my computer', 'on my computer',
     "what's on my computer", 'what is on my computer', 'look at my desktop',
     'what is on the screen', "what's on the screen",
-    'vad ser du', 'vad finns på skärmen',
+    'look at the browser', 'look at browser', 'look in the browser',
+    'read the browser', 'read whats on the browser', "read what's on the browser",
+    'read what is on the browser', 'what is on the browser', "what's on the browser",
+    'what can you see in the browser', 'what do you see in the browser',
+    'tell me what you see', 'tell me what you can see',
+    'can you read it', 'can you read that', 'read it for me', 'read that page',
+    'read the page', 'read whats on the page', "read what's on the page",
+    'vad ser du', 'vad finns på skärmen', 'läs webbläsaren', 'läs sidan',
+    'vad ser du i webbläsaren', 'ماذا ترى', 'اقرأ الصفحة', 'اقرأ المتصفح',
 )
 
 TAKEOVER_TRIGGERS = (
@@ -110,6 +118,34 @@ BROWSER_END_TRIGGERS = (
     'go back', 'back to beru', 'back to the app', 'back in beru',
     'close the browser', 'close browser', 'focus beru', 'return to beru',
     'come back to beru', 'back to app', 'tillbaka till beru',
+)
+
+CLOSE_TAB_TRIGGERS = (
+    'close the tab', 'close this tab', 'close that tab', 'close tab',
+    'close current tab', 'close the browser tab', 'close browser tab',
+    'close the tap', 'close this tap', 'close that tap', 'close tap',
+    'shut the tab', 'shut this tab', 'dismiss the tab', 'dismiss this tab',
+    'enclose this tab', 'enclose the tab', 'inclose this tab',
+    'stäng fliken', 'stäng den här fliken', 'stäng denna flik', 'stäng flik',
+    'اغلق التبويب', 'أغلق التبويب',
+)
+
+SCROLL_PAGE_TRIGGERS = (
+    'scroll down', 'scroll up', 'scroll to top', 'scroll to bottom',
+    'page down', 'page up', 'scroll the page', 'scroll on the page',
+    'scroll a bit', 'scroll more', 'keep scrolling',
+    'rulla ner', 'rulla upp', 'scrolla ner', 'scrolla upp',
+)
+
+FIND_ON_PAGE_TRIGGERS = (
+    'show me on the page', 'find on the page', 'on the page find',
+    'scroll to', 'go to on the page', 'where is on the page',
+    'show me on facebook', 'find on facebook', 'show me on google',
+    'visa mig på sidan', 'hitta på sidan', 'scrolla till',
+)
+
+_TAB_SITE_NAMES = (
+    'facebook', 'google', 'youtube', 'github', 'instagram', 'reddit', 'twitter', 'smhi',
 )
 
 _WEATHER_WORDS = frozenset({
@@ -234,13 +270,110 @@ def _is_weather_query(query: str) -> bool:
     return any(w in query.lower() for w in _WEATHER_WORDS)
 
 
-def _open_url_client_action(url: str) -> dict:
-    return {'type': 'open_url', 'url': url}
+def _open_url_client_action(url: str, *, reuse_tab: bool = True) -> dict:
+    return {'type': 'open_url', 'url': url, 'reuse_tab': reuse_tab}
 
 
 def _focus_app_client_action() -> dict:
     return {'type': 'focus_app'}
 
+
+def _close_tab_client_action(*, site: str = '') -> dict:
+    action: dict = {'type': 'close_tab'}
+    if site:
+        action['site'] = site
+    return action
+
+
+def _scroll_client_action(direction: str, *, amount: int = 1) -> dict:
+    return {'type': 'scroll', 'direction': direction, 'amount': amount}
+
+
+def _scroll_to_text_client_action(text: str) -> dict:
+    return {'type': 'scroll_to_text', 'text': text}
+
+
+def _parse_tab_site(text: str) -> str:
+    tl = (text or '').lower()
+    for site in _TAB_SITE_NAMES:
+        if site in tl:
+            return site
+    return ''
+
+
+def _is_close_tab_request(tl: str) -> bool:
+    if any(t in tl for t in CLOSE_TAB_TRIGGERS):
+        return True
+    return bool(re.search(
+        r'\b(?:close|shut|dismiss|enclose|inclose)\s+(?:the\s+)?(?:\w+\s+){0,2}(?:tab|tap)\b',
+        tl,
+    ))
+
+
+def _parse_scroll_direction(tl: str) -> str:
+    if any(x in tl for x in ('scroll up', 'page up', 'rulla upp', 'scrolla upp', 'to top')):
+        return 'up'
+    if any(x in tl for x in ('to bottom', 'scroll to bottom')):
+        return 'bottom'
+    if any(x in tl for x in ('to top', 'scroll to top')):
+        return 'top'
+    return 'down'
+
+
+def _extract_find_on_page_query(text: str) -> str:
+    for pattern in (
+        r'(?:show|find|locate|highlight)\s+(?:me\s+)?(.+?)(?:\s+on\s+(?:the\s+)?(?:page|site|tab|browser|facebook|google))',
+        r'(?:scroll|go)\s+to\s+(.+?)(?:\s+on\s+(?:the\s+)?(?:page|site|tab))?',
+        r'(?:where\s+is|where\'s|wheres)\s+(.+?)(?:\s+on\s+(?:the\s+)?(?:page|site|tab))?',
+        r'(?:show|find)\s+(?:me\s+)?(.+)$',
+    ):
+        m = re.search(pattern, text, re.I)
+        if m:
+            q = m.group(1).strip(' .,!?')
+            if len(q) >= 2 and q.lower() not in ('it', 'that', 'this', 'the page', 'the tab'):
+                return q
+    return ''
+
+
+def _looks_like_cookie_wall(text: str) -> bool:
+    low = (text or '').lower()
+    return any(
+        x in low
+        for x in (
+            'before you continue', 'accept all', 'cookie', 'consent',
+            'privacy policy', 'koldioxidneutralt', 'leverera och underhålla',
+        )
+    )
+
+
+def _find_text_on_page(page_text: str, query: str) -> str:
+    """Return a line/snippet from page_text that matches query, or ''."""
+    if not page_text or not query:
+        return ''
+    q_words = [w for w in re.findall(r'\w+', query.lower()) if len(w) > 2]
+    if not q_words:
+        return ''
+    best = ''
+    best_score = 0
+    for ln in page_text.splitlines():
+        ln = ln.strip()
+        if len(ln) < 8:
+            continue
+        low = ln.lower()
+        score = sum(1 for w in q_words if w in low)
+        if score > best_score:
+            best_score = score
+            best = ln
+    if best_score > 0:
+        return best[:240]
+    collapsed = ' '.join(page_text.split())
+    low = collapsed.lower()
+    idx = low.find(q_words[0])
+    if idx >= 0:
+        start = max(0, idx - 40)
+        end = min(len(collapsed), idx + 200)
+        return collapsed[start:end].strip()
+    return ''
 
 def _weather_api_answer(query: str, full_text: str = '') -> str:
     """Real weather APIs only — never LLM."""
@@ -356,11 +489,25 @@ def apply_turn_meta(meta: dict, action: ComputerActionResult) -> None:
 def remember_computer_action(memory, action: ComputerActionResult) -> None:
     if not memory:
         return
-    if action.activity == 'idle':
-        memory.clear_last_computer_action()
-        return
 
     url = action.browser_url or action.opened_url
+    query = action.search_query or action.query
+
+    if action.activity == 'idle':
+        if action.browser_open and url:
+            memory.set_last_computer_action(
+                action_type='open_url' if not query else 'search',
+                query=query,
+                url=url,
+                summary=action.summary or action.message,
+                page_title=action.page_title,
+                page_text=action.page_text,
+            )
+            return
+        if not action.browser_open:
+            memory.clear_last_computer_action()
+        return
+
     if not action.ok:
         if url or action.query or action.search_query:
             memory.set_last_computer_action(
@@ -429,8 +576,8 @@ def is_computer_followup(text: str, memory) -> bool:
     tl = text.lower().strip()
     if any(t in tl for t in COMPUTER_FOLLOWUP_TRIGGERS):
         return True
-    if len(tl.split()) <= 14 and any(
-        w in tl for w in ('it', 'this', 'there', 'again', 'same', 'repeat')
+    if len(tl.split()) <= 14 and re.search(
+        r'\b(it|this|there|again|same|repeat)\b', tl
     ):
         return True
     if re.search(r"\bthat's\b|\bthat is\b", tl) and any(
@@ -577,26 +724,89 @@ def answer_computer_followup(text: str, memory, *, language: str = 'en') -> Comp
 
 def _open_url_target(text: str) -> str:
     """URL or domain from message, or remainder after an open-url trigger."""
+    from src.url_normalize import normalize_open_url
+
     url = _extract_url(text)
     if url:
-        return url
+        return normalize_open_url(url)
     rest = _extract_after_triggers(text, OPEN_URL_TRIGGERS)
     if rest and rest.lower().strip() not in _OPEN_URL_PLACEHOLDERS:
-        return rest
+        return normalize_open_url(rest)
+    m = re.search(
+        r'\b(?:open|öppna|go to|visit|gå till|navigate to|browse to)\s+(?:the\s+)?(.+)$',
+        text,
+        re.I,
+    )
+    if m:
+        candidate = m.group(1).strip(' .,!?')
+        if candidate.lower() not in _OPEN_URL_PLACEHOLDERS and len(candidate) >= 2:
+            if not re.search(r'\b(search|find|for|weather|väder|sök|efter|look up)\b', candidate, re.I):
+                return normalize_open_url(candidate)
     return ''
 
 
+def is_action_confirm(text: str) -> bool:
+    tl = (text or '').lower().strip().strip('.!,')
+    if not tl:
+        return False
+    if any(p in tl for p in (
+        'do it', 'go ahead', 'go on', 'yeah do', 'yes do', 'please do',
+        'gör det', 'kör', 'gör det nu',
+    )):
+        return True
+    if len(tl.split()) <= 4 and any(
+        p in tl for p in ('yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'ja', 'japp', 'نعم', 'أيوه')
+    ):
+        return True
+    return False
+
+
+def execute_pending_client_actions(memory, *, language: str = 'en') -> ComputerActionResult | None:
+    pending = memory.get_pending_client_actions() if memory else []
+    if not pending:
+        return None
+    label = (memory.session.get('pending_action_label') or 'that').strip()
+    memory.clear_pending_client_actions()
+    return ComputerActionResult(
+        ok=True,
+        message=_msg('pending_action_ok', language, label=label),
+        activity='browsing',
+        source='computer',
+        client_actions=pending,
+        browser_open=True,
+    )
+
+
 def parse_computer_intent(text: str) -> Optional[str]:
-    """Return action id: browser_search, open_url, screenshot, takeover_help."""
+    """Return action id: browser_search, open_url, screenshot, takeover_help, etc."""
     if not text:
         return None
     tl = text.lower().strip()
     if any(t in tl for t in TAKEOVER_TRIGGERS):
         return 'takeover_help'
+    if _is_close_tab_request(tl):
+        return 'close_tab'
+    if any(t in tl for t in SCROLL_PAGE_TRIGGERS) or re.search(
+        r'\bscroll\s+(?:down|up|to)\b', tl
+    ):
+        return 'scroll_page'
+    if any(t in tl for t in FIND_ON_PAGE_TRIGGERS) or re.search(
+        r'\b(?:show|find|locate)\s+me\b', tl
+    ) and re.search(r'\b(?:page|site|tab|facebook|google|browser)\b', tl):
+        return 'find_on_page'
     if any(t in tl for t in SCREENSHOT_TRIGGERS):
         return 'screenshot'
     if any(t in tl for t in SEE_COMPUTER_TRIGGERS):
         return 'see_computer'
+    if re.search(
+        r'\b(look at|read|see)\s+(?:the\s+)?browser\b', tl
+    ) or re.search(r'\bread\s+(?:it|that|the page)\b', tl):
+        return 'see_computer'
+    if re.search(
+        r'\b(?:open|öppna|go to|visit|gå till)\s+(?:the\s+)?(?:google|facebook|youtube|github|smhi|instagram|reddit)\b',
+        tl,
+    ) and not re.search(r'\b(search|find|for|weather|väder|sök|look up)\b', tl):
+        return 'open_url'
     if any(t in tl for t in BROWSER_SEARCH_TRIGGERS):
         return 'browser_search'
     if re.search(r'open\s+(?:the\s+)?browser', tl) and re.search(r'\bsearch\b', tl):
@@ -642,7 +852,7 @@ def capabilities() -> dict:
         'playwright': playwright_available(),
         'web_search_source': 'search',
         'activities': ['searching', 'browsing', 'reading_page', 'idle'],
-        'client_actions': ['open_url', 'focus_app'],
+        'client_actions': ['open_url', 'focus_app', 'close_tab', 'scroll', 'scroll_to_text'],
         'see_computer': True,
         'read_browser_page': True,
         'notes': (
@@ -679,12 +889,14 @@ def _take_screenshot() -> str:
 
 
 def _execute_see_computer(text: str, *, language: str = 'en', memory=None) -> ComputerActionResult:
-    """Read open browser tab or capture the desktop — general agent vision."""
+    """Read open browser tab — screenshot only when user asks about screen/desktop."""
     last = memory.get_last_computer_action() if memory else {}
     url = (last or {}).get('url') or ''
     query = (last or {}).get('query') or ''
+    tl = (text or '').lower()
+    wants_screen = bool(re.search(r'\b(screen|desktop)\b', tl))
 
-    if url:
+    if url and not wants_screen:
         facts, page_text, page_title, err = _facts_from_url(url, query, language)
         if facts:
             if memory:
@@ -715,8 +927,43 @@ def _execute_see_computer(text: str, *, language: str = 'en', memory=None) -> Co
                     page_text=last['page_text'],
                     **_browser_result_fields(url=url, query=query, client_actions=[]),
                 )
+        if page_text and _looks_like_cookie_wall(page_text):
+            site = _domain_from_url(url)
+            return ComputerActionResult(
+                ok=True,
+                message=_msg('cookie_wall', language, site=site),
+                activity='browsing',
+                source='computer',
+                summary='',
+                page_title=page_title,
+                page_text=page_text,
+                **_browser_result_fields(url=url, query=query, client_actions=[]),
+            )
+        if err:
+            return ComputerActionResult(
+                ok=False,
+                message=_msg('scrape_empty', language, err=err),
+                activity='browsing',
+                source='computer',
+                **_browser_result_fields(url=url, query=query, client_actions=[]),
+            )
+        site = _domain_from_url(url)
+        return ComputerActionResult(
+            ok=True,
+            message=_msg('see_page_empty', language, site=site),
+            activity='browsing',
+            source='computer',
+            **_browser_result_fields(url=url, query=query, client_actions=[]),
+        )
 
-    if _screenshot_available():
+    if not url and not wants_screen:
+        return ComputerActionResult(
+            ok=False,
+            message=_msg('see_computer_help', language),
+            source='computer',
+        )
+
+    if _screenshot_available() and wants_screen:
         try:
             path = os.path.abspath(_take_screenshot())
             if memory:
@@ -770,6 +1017,76 @@ def execute(text: str, *, language: str = 'en', memory=None, brain=None) -> Comp
     if intent == 'see_computer':
         return _execute_see_computer(text, language=language, memory=memory)
 
+    if intent == 'close_tab':
+        site = _parse_tab_site(text)
+        label = site or _domain_from_url((memory.get_last_computer_action() or {}).get('url', ''))
+        label = label or 'current'
+        client_action = _close_tab_client_action(site=site)
+        if memory:
+            memory.set_pending_client_actions([client_action], label=f'close {label}')
+        return ComputerActionResult(
+            ok=True,
+            message=_msg('close_tab_ok', language, site=label),
+            activity='browsing',
+            source='computer',
+            client_actions=[client_action],
+            browser_open=True,
+        )
+
+    if intent == 'scroll_page':
+        direction = _parse_scroll_direction(text.lower())
+        return ComputerActionResult(
+            ok=True,
+            message=_msg('scroll_ok', language, direction=direction),
+            activity='browsing',
+            source='computer',
+            client_actions=[_scroll_client_action(direction)],
+            browser_open=True,
+        )
+
+    if intent == 'find_on_page':
+        find_q = _extract_find_on_page_query(text)
+        last = memory.get_last_computer_action() if memory else {}
+        url = (last or {}).get('url') or ''
+        if not find_q:
+            return ComputerActionResult(
+                ok=False,
+                message=_msg('find_need_query', language),
+                source='computer',
+            )
+        if not url:
+            return ComputerActionResult(
+                ok=False,
+                message=_msg('see_computer_help', language),
+                source='computer',
+            )
+        facts, page_text, page_title, err = _facts_from_url(url, find_q, language)
+        snippet = _find_text_on_page(page_text, find_q) or facts
+        if snippet:
+            if memory:
+                memory.update_last_computer_page(page_text, page_title)
+            scroll_action = _scroll_to_text_client_action(snippet[:120])
+            return ComputerActionResult(
+                ok=True,
+                message=_msg('find_on_page_ok', language, snippet=snippet),
+                activity='reading_page',
+                source='computer',
+                summary=snippet,
+                page_title=page_title,
+                page_text=page_text,
+                **_browser_result_fields(
+                    url=url,
+                    client_actions=[scroll_action],
+                ),
+            )
+        return ComputerActionResult(
+            ok=False,
+            message=_msg('find_on_page_miss', language, query=find_q),
+            activity='browsing',
+            source='computer',
+            **_browser_result_fields(url=url, client_actions=[]),
+        )
+
     if intent == 'screenshot':
         if not _screenshot_available():
             return ComputerActionResult(
@@ -801,22 +1118,18 @@ def execute(text: str, *, language: str = 'en', memory=None, brain=None) -> Comp
                 message=_msg('need_url', language),
                 source='computer',
             )
-        if not url.startswith('http'):
-            url = 'https://' + url.lstrip('/')
+        from src.url_normalize import normalize_open_url
+
+        url = normalize_open_url(url)
         site = _domain_from_url(url)
-        facts, page_text, page_title, err = _facts_from_url(url, '', language)
-        if facts:
-            message = _msg('opened_with_facts', language, site=site, facts=facts)
-        else:
-            message = _msg('opened_url', language, site=site)
         return ComputerActionResult(
             ok=True,
-            message=message,
-            activity='reading_page' if facts else 'browsing',
+            message=_msg('opened_url', language, site=site),
+            activity='browsing',
             source='computer',
-            summary=facts or message,
-            page_title=page_title,
-            page_text=page_text,
+            summary='',
+            page_title='',
+            page_text='',
             **_browser_result_fields(url=url),
         )
 
@@ -875,8 +1188,10 @@ def _takeover_help(language: str) -> str:
         )
     return (
         'I am your computer agent bro. I can: search the web and read pages, '
-        'open websites, capture your screen, and answer "what can you see?". '
+        'open websites, close tabs, scroll pages, find text on a page, '
+        'capture your screen, and answer "what can you see?". '
         'Try: "search for Python tutorials", "open youtube.com", '
+        '"close the Facebook tab", "scroll down", "show me login on the page", '
         '"what is on my screen?", "what did you find?". '
         'I do not control mouse and keyboard yet.'
     )
@@ -947,6 +1262,46 @@ def _msg(key: str, language: str, **kwargs) -> str:
             'en': 'Open a site or search first, then ask what I see. Or say take a screenshot.',
             'sv': 'Öppna en sida eller sök först, fråga sedan vad jag ser. Eller säg ta en skärmdump.',
             'ar': 'افتح موقعاً أو ابحث أولاً، ثم اسأل ماذا أرى. أو قل خذ لقطة شاشة.',
+        },
+        'cookie_wall': {
+            'en': '{site} is open but I only see a cookie or consent screen. Accept it in the browser, then ask what I see again.',
+            'sv': '{site} är öppen men jag ser bara cookie-/samtyckesskärm. Acceptera i webbläsaren och fråga igen.',
+            'ar': '{site} مفتوح لكن أرى شاشة cookies فقط. وافق في المتصفح ثم اسأل مرة أخرى.',
+        },
+        'see_page_empty': {
+            'en': '{site} is open but I could not read useful text yet. Try scrolling or ask me to find something on the page.',
+            'sv': '{site} är öppen men jag kunde inte läsa användbar text än. Prova scrolla eller be mig hitta något på sidan.',
+            'ar': '{site} مفتوح لكن لم أجد نصاً مفيداً بعد. جرّب التمرير أو اطلب مني أن أجد شيئاً على الصفحة.',
+        },
+        'close_tab_ok': {
+            'en': 'Closing the {site} tab bro.',
+            'sv': 'Stänger {site}-fliken bro.',
+            'ar': 'سأغلق تبويب {site}.',
+        },
+        'scroll_ok': {
+            'en': 'Scrolling {direction} on the page.',
+            'sv': 'Scrollar {direction} på sidan.',
+            'ar': 'أمرّر {direction} على الصفحة.',
+        },
+        'find_need_query': {
+            'en': 'Tell me what to find on the page — e.g. "show me the login button on the page".',
+            'sv': 'Säg vad jag ska hitta på sidan — t.ex. "visa mig inloggningen på sidan".',
+            'ar': 'قل ماذا أجد على الصفحة — مثلاً "اعرض لي زر تسجيل الدخول على الصفحة".',
+        },
+        'find_on_page_ok': {
+            'en': 'Found this on the page: {snippet}',
+            'sv': 'Hittade detta på sidan: {snippet}',
+            'ar': 'وجدت هذا على الصفحة: {snippet}',
+        },
+        'find_on_page_miss': {
+            'en': 'I could not find "{query}" on the current page. Try scrolling or open the right site first.',
+            'sv': 'Jag hittade inte "{query}" på sidan. Prova scrolla eller öppna rätt sida först.',
+            'ar': 'لم أجد "{query}" على الصفحة. جرّب التمرير أو افتح الموقع الصحيح أولاً.',
+        },
+        'pending_action_ok': {
+            'en': 'On it bro — doing {label} now.',
+            'sv': 'Kör bro — {label} nu.',
+            'ar': 'حاضر — أنفذ {label} الآن.',
         },
         'need_query': {
             'en': (

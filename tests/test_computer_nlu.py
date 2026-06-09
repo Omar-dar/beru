@@ -1,6 +1,6 @@
 import unittest
 
-from src.computer_nlu import extract_search_topic, is_natural_computer_request, resolve_plan
+from src.computer_nlu import extract_search_topic, is_natural_computer_request, is_talking_to_beru, resolve_plan
 
 
 class ComputerNluTests(unittest.TestCase):
@@ -38,7 +38,15 @@ class ComputerNluTests(unittest.TestCase):
         q = extract_search_topic(p)
         self.assertIn('ai', q.lower())
 
-    def test_open_site_loose(self):
+    def test_open_google_polite_not_talking_to_beru(self):
+        from src.computer_control import is_computer_control_request, parse_computer_intent
+        from src.computer_nlu import is_talking_to_beru
+
+        q = 'Could you open Google on browser?'
+        self.assertFalse(is_talking_to_beru(q))
+        self.assertEqual(parse_computer_intent(q), 'open_url')
+        self.assertTrue(is_computer_control_request(q, is_owner=True))
+
         p = 'Take me to youtube.com'
         plan = resolve_plan(p, brain=None)
         self.assertIsNotNone(plan)

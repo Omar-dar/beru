@@ -72,6 +72,9 @@ BERU_ACTIVITY_TRIGGERS = [
     'vad gör du', 'vad håller du på med',
     'what do you want to do', 'what would you like to do', 'what you want to do',
     'what are you going to do today', 'vad vill du göra', 'ماذا تريد أن تفعل',
+    'what do you want to learn', 'what would you like to learn', 'what you want to learn',
+    'what do you want to study', 'vad vill du lära', 'vad vill du plugga', 'vad vill du lära dig',
+    'ماذا تريد أن تتعلم', 'ماذا تريد تتعلم',
 ]
 
 SEARCH_BLOCK_TRIGGERS = OMAR_PERSONAL_TRIGGERS + BERU_SELF_TRIGGERS + [
@@ -652,6 +655,24 @@ class BeruKnowledge:
         from src.fact_i18n import match_personal_memory_fact, reply_from_personal_fact
 
         text_lower = text.lower()
+        if re.search(r'\b(vem|who)\s+(är|is)\s+omar\b', text_lower) or re.search(
+            r'من\s+هو\s+عمر', text or ''
+        ):
+            if language == 'sv':
+                return (
+                    f'Du är {OWNER_FULL_NAME} bro — min skapare och bästa kompis. '
+                    'Jag menar alltid dig när jag pratar med dig.'
+                )
+            if language == 'ar':
+                return (
+                    f'أنت {OWNER_FULL_NAME_AR} يا صديقي — من أنشأني. '
+                    'أقصدك دائماً عندما أتحدث معك.'
+                )
+            return (
+                f'You are {OWNER_FULL_NAME} bro — my creator and best friend. '
+                'I always mean you when I talk with you.'
+            )
+
         facts = learned_facts or self.learned_omar_facts
 
         personal = match_personal_memory_fact(facts, text)
@@ -850,13 +871,48 @@ class BeruKnowledge:
             return (
                 'I can chat in English, Swedish, and Arabic, remember people and conversations, '
                 'learn from corrections, search Wikipedia and weather, analyze text, and help with '
-                'writing, code, letters, and more.'
+                'writing, code, letters, and more. On your computer I can open sites, close tabs, '
+                'scroll pages, read what is on a page, and search the web.'
             )
 
         facts = identity.get('facts', [])
         if facts:
             return facts[0]
         return None
+
+    def _is_beru_learn_question(self, text):
+        if not text:
+            return False
+        tl = text.lower()
+        return any(x in tl for x in (
+            'what do you want to learn', 'what would you like to learn',
+            'what you want to learn', 'what do you want to study',
+            'vad vill du lära', 'vad vill du plugga', 'vad vill du lära dig',
+            'ماذا تريد أن تتعلم', 'ماذا تريد تتعلم',
+        ))
+
+    def _answer_beru_learn_question(self, language='en', memory=None):
+        is_owner = memory is not None and memory.is_owner()
+        if language == 'sv':
+            if is_owner:
+                return (
+                    'Jag lär mig mest av dig bro — när vi pratar, när du rättar mig, '
+                    'och när vi kodar tillsammans. Vad vill du att jag ska hjälpa dig med?'
+                )
+            return 'Jag lär mig från våra samtal och från att hjälpa till. Vad vill du göra?'
+        if language == 'ar':
+            if is_owner:
+                return (
+                    'أتعلم منك يا صديقي — من حديثنا، وتصحيحاتك، وعندما نبرمج معاً. '
+                    'بماذا تريد أن أساعدك؟'
+                )
+            return 'أتعلم من محادثاتنا ومن مساعدتك. ماذا تريد أن تفعل؟'
+        if is_owner:
+            return (
+                'I learn the most from you bro — from our talks, your corrections, '
+                'and when we code together. What do you want help with?'
+            )
+        return 'I learn from our conversations and from helping you. What would you like to do?'
 
     def _is_beru_wants_today_question(self, text):
         if not text:
@@ -873,6 +929,9 @@ class BeruKnowledge:
 
     def answer_beru_activity_question(self, text, language='en', memory=None):
         """What Beru is doing / wants  -  honest AI, no human hobbies or feelings."""
+        if self._is_beru_learn_question(text):
+            return self._answer_beru_learn_question(language, memory=memory)
+
         if self._is_beru_wants_today_question(text):
             return self._answer_beru_wants_today(text, language, memory)
 

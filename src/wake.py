@@ -9,9 +9,16 @@ from datetime import date
 # Whisper often mishears "Beru" — treat these as wake words when calling the assistant.
 _BERU_STT_ALIASES = (
     'beru', 'buro', 'beirut', 'bero', 'buru', 'baru',
-    'barrow', 'barrel', 'beryl', 'burrow', 'burro', 'berry', 'berri', 'barron',
+    'barrow', 'barrel', 'beryl', 'burrow', 'burro', 'berry', 'berri', 'barron', 'perot', 'berot',
     'peru', 'bearu', 'bare u', 'bay ru', 'be ru', 'hey ru',
+    'bellow', 'below', 'barlow', 'boro', 'burro',
 )
+
+# STT said this instead of Beru — prompt, do not treat as random chat.
+_WAKE_NEAR_MISS = frozenset({
+    'bellow', 'below', 'barlow', 'boro', 'pillow', 'hello', 'yellow', 'mellow',
+    'burro', 'hero', 'zero', 'arrow', 'narrow',
+})
 
 _WAKE_UP_RE = re.compile(r'\bwake\s+up\b', re.I)
 
@@ -22,11 +29,11 @@ _WAKE_PATTERNS = (
     re.compile(r'\b(?:buro|beirut)\b', re.I),
     re.compile(
         r'\b(?:hey|hi|hello|ok|okay|yo)\s*,?\s*(?:wake\s+up\s+)?'
-        r'(?:barrow|barrel|beryl|burrow|burro|berry|bero|buro|barron)\b',
+        r'(?:barrow|barrel|beryl|burrow|burro|berry|bero|buro|barron|bellow|below|barlow)\b',
         re.I,
     ),
     re.compile(
-        r'\b(?:barrow|barrel|beryl|burrow|burro|berry|bero|buro)\b',
+        r'\b(?:barrow|barrel|beryl|burrow|burro|berry|bero|buro|bellow|below|barlow)\b',
         re.I,
     ),
 )
@@ -109,6 +116,26 @@ _GREETINGS = {
         'أنا هنا يا صديقي. ماذا سنفعل اليوم؟',
     ],
 }
+
+
+def is_near_wake_miss(text: str) -> bool:
+    """Single-word STT that sounds like Beru but did not match wake."""
+    if not text or sounds_like_wake(text):
+        return False
+    tl = text.lower().strip().strip('.!,')
+    if tl in _WAKE_NEAR_MISS:
+        return True
+    if len(tl.split()) <= 2 and any(n in tl for n in _WAKE_NEAR_MISS):
+        return True
+    return False
+
+
+def wake_miss_prompt(language: str = 'en') -> str:
+    if language == 'sv':
+        return 'Nästan! Säg "Beru" eller "Vakna Beru" så vet jag att det är du.'
+    if language == 'ar':
+        return 'قريب! قل "Beru" أو "استيقظ Beru" لأعرف أنك أنت.'
+    return 'Almost bro! Say "Beru" or "Wake up Beru" so I know it is you.'
 
 
 def wake_greeting(language: str = 'en', *, memory=None) -> str:

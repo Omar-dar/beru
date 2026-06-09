@@ -40,7 +40,15 @@ CODE_GENERATION_TRIGGERS = [
     'write code', 'write me code', 'give me code', 'show me code', 'generate code',
     'code for', 'code to', 'need code', 'want code', 'create code', 'make code',
     'python script', 'javascript for', 'skriv kod', 'ge mig kod', 'generera kod',
+    'hello world',
 ]
+
+_CODE_LANG_PATTERN = re.compile(
+    r'\b(write|show|give|create|just write|make)\b.{0,40}\b('
+    r'java|python|javascript|typescript|c\+\+|c#|rust|go|kotlin|swift|ruby|php'
+    r')\b',
+    re.I,
+)
 
 CONVERSATION_REFERENCE_PHRASES = (
     'that code', 'this code', 'the code', 'your code', 'that script', 'this script',
@@ -117,6 +125,10 @@ def is_code_explanation_request(text):
 def is_code_generation_request(text):
     text_lower = text.lower()
     if any(t in text_lower for t in CODE_GENERATION_TRIGGERS):
+        if 'can you code' in text_lower or 'do you code' in text_lower:
+            return False
+        return True
+    if _CODE_LANG_PATTERN.search(text_lower):
         return True
     if re.search(r'\b(code|kod)\b', text_lower):
         return any(

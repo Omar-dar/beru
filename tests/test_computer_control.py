@@ -101,6 +101,57 @@ class ComputerControlTests(unittest.TestCase):
 
     def test_parse_open_url(self):
         self.assertEqual(parse_computer_intent('open github.com'), 'open_url')
+        self.assertEqual(parse_computer_intent('open Google'), 'open_url')
+        self.assertEqual(parse_computer_intent('öppna Facebook hemsida'), 'open_url')
+
+    def test_look_at_browser_is_see_not_search(self):
+        self.assertEqual(parse_computer_intent('look at the browser'), 'see_computer')
+        self.assertEqual(parse_computer_intent('read it'), 'see_computer')
+
+    @patch('src.computer_control._facts_from_url')
+    def test_open_google_normalizes_url(self, scrape):
+        result = execute('open Google', language='en')
+        self.assertTrue(result.ok)
+        self.assertEqual(result.browser_url, 'https://www.google.com')
+        self.assertEqual(result.client_actions[0]['url'], 'https://www.google.com')
+        self.assertTrue(result.client_actions[0].get('reuse_tab'))
+        self.assertEqual(result.activity, 'browsing')
+        self.assertNotIn('Koldioxid', result.message)
+        scrape.assert_not_called()
+
+    def test_polite_open_google_on_browser_not_chitchat(self):
+        from src.computer_nlu import is_talking_to_beru
+
+        q = 'Could you open Google on browser?'
+        self.assertFalse(is_talking_to_beru(q))
+        self.assertEqual(parse_computer_intent(q), 'open_url')
+        self.assertTrue(is_computer_control_request(q, is_owner=True))
+
+    def test_close_facebook_tab(self):
+        self.assertEqual(parse_computer_intent('Close the Facebook tab.'), 'close_tab')
+        result = execute('Close the Facebook tab.', language='en')
+        self.assertTrue(result.ok)
+        self.assertEqual(result.client_actions[0]['type'], 'close_tab')
+        self.assertEqual(result.client_actions[0]['site'], 'facebook')
+
+    def test_close_google_tap_stt(self):
+        from src.stt_normalize import normalize_stt_text
+
+        q = normalize_stt_text('Close Google Tap.')
+        self.assertEqual(parse_computer_intent(q), 'close_tab')
+
+    def test_capabilities_not_search(self):
+        from src.computer_nlu import extract_search_topic
+
+        q = 'Could you tell me what you can do?'
+        self.assertFalse(is_computer_control_request(q, is_owner=True))
+        self.assertEqual(extract_search_topic(q), '')
+
+    def test_scroll_down(self):
+        self.assertEqual(parse_computer_intent('scroll down on the page'), 'scroll_page')
+        result = execute('scroll down', language='en')
+        self.assertEqual(result.client_actions[0]['type'], 'scroll')
+        self.assertEqual(result.client_actions[0]['direction'], 'down')
 
     def test_browse_browser_capability(self):
         self.assertEqual(parse_computer_intent('can you browse my browser?'), 'takeover_help')
