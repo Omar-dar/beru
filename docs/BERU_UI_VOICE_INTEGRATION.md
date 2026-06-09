@@ -270,6 +270,26 @@ API enables `flask-cors` for all origins — GUI on another port (e.g. Vite `517
 | `BERU_TTS_BACKEND` | `edge` (or `macos`) |
 | `BERU_EDGE_VOICE_SV` etc. | Optional neural voice IDs |
 | `OPENWEATHER_KEY` | Weather search (optional) |
+| `BERU_COMPUTER_CONTROL` | `1` = Omar can trigger browser/screenshot actions |
+| `BERU_WEB_SEARCH` | `1` = DuckDuckGo snippets for `source: search` |
+
+See [BERU_COMPUTER_CONTROL.md](BERU_COMPUTER_CONTROL.md) for owner-only desktop actions.
+
+### Search / activity fields (voice UI)
+
+```json
+{
+  "response": "...",
+  "source": "search",
+  "activity": "searching",
+  "opened_url": "https://www.google.com/search?q=..."
+}
+```
+
+Frontend: `source === 'search' || source === 'web_search'` → searching orb + WEB badge.  
+Optional `activity`: `searching` | `browsing` | `screenshot`.
+
+`GET /computer/capabilities` — desktop feature flags.
 
 ---
 

@@ -3,6 +3,8 @@
 What we built in **beru-ui** (frontend) and what **beru** (backend) must provide or verify.  
 Phone UI: [https://beruui.netlify.app](https://beruui.netlify.app)
 
+**Backend implementation status:** see [BERU_UI_INTEGRATION.md](BERU_UI_INTEGRATION.md) — API contract, CORS, voice, search orb (`source: "search"`), and deploy checklist are implemented in this repo.
+
 ---
 
 ## What we built in beru-ui (frontend)
