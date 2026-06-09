@@ -25,6 +25,15 @@ def _normalize(text):
     return re.sub(r'\s+', ' ', (text or '').strip())
 
 
+_SKIP_ANSWER_MARKERS = (
+    'google.com/search?q=',
+    'url: https://',
+    'i do not know that for certain yet',
+    'cungulmak',
+    'whatsapp web',
+    'what does the fox say',
+)
+
 def is_learnable_exchange(question, answer, source):
     """Return True when this Q&A should be appended to Beru training data."""
     if source in SKIP_SOURCES:
@@ -36,7 +45,10 @@ def is_learnable_exchange(question, answer, source):
         return False
 
     q_lower = q.lower()
+    a_lower = a.lower()
     if any(marker in q_lower for marker in _GATE_MARKERS):
+        return False
+    if any(marker in a_lower for marker in _SKIP_ANSWER_MARKERS):
         return False
 
     # Prefer learning from Ollama (brain); also keep strong RAG/search hits
