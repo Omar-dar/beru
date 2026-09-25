@@ -212,9 +212,3 @@ The more varied and comprehensive the data the smarter Beru becomes.
 - ElevenLabs voice integration
 - Connect to robot brain
 
-## About
-
-Beru was built completely from scratch by Omar Darwish as a personal AI project. The name Beru is unique and given by Omar. Beru's architecture and training pipeline were developed independently. The project also experiments with fine-tuning and external NLP tooling where relevant. 
-The architecture, training code and personality are all original.
-
-GitHub: github.com/Omar-dar/beru
